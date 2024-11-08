@@ -1,0 +1,59 @@
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+
+### Three Dogs coin
+
+> A platform with its own cryptocurrency system (and possibly getting a blockchain in the future) but essentially equivalent to points and balances
+
+### Exchange ratio
+
+<Card className="my-4 items-center justify-center px-14 mx-14">
+  <CardContent className="p-3">
+    <Table className="mt-2">
+      <TableCaption>
+        Copper coins are used as the smallest unit of currency, and the exchange
+        rate is 1:100, e.g. Copper coins to Silver coins = 1 Silver = 100 Copper
+        The exchange rate shown in the table is for RMB, it may fluctuate for
+        different currencies, please refer to the actual account.
+      </TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-center">Name</TableHead>
+          <TableHead className="text-center">Units (number)</TableHead>
+          <TableHead className="text-center">
+            Exchange ratio (copper coins)
+          </TableHead>
+          <TableHead className="text-center">Prices</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody className="text-center">
+        <TableRow>
+          <TableCell>Copper Coins</TableCell>
+          <TableCell>1</TableCell>
+          <TableCell>1:1</TableCell>
+          <TableCell>￥0.01</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Silver Coins</TableCell>
+          <TableCell>1</TableCell>
+          <TableCell>1:100</TableCell>
+          <TableCell>￥1</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Gold Coin</TableCell>
+          <TableCell>1</TableCell>
+          <TableCell>1:10000</TableCell>
+          <TableCell>￥100</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </CardContent>
+</Card>

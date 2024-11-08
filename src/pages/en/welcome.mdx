@@ -1,0 +1,55 @@
+import { CircleAlert, Info, TriangleAlert } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+
+<div className="overflow-hidden -mx-4 sm:mx-auto sm:rounded-md mb-8 my-4">
+  <img
+    alt="Page cover image"
+    class="w-full object-cover object-center block min-w-sm h-48"
+    src="/index-header.jpg"
+  />
+</div>
+
+# Welcome to TD Cloud documentation!
+
+<Card className="bg-sky-50 dark:bg-sky-600 my-4">
+  <CardContent className="p-3">
+    <div className="flex items-center">
+      <Info className="size-4 inline-block mr-2" />
+      <div className="text-sm font-medium">
+        To view the documentation, click on the related articles in the sidebar
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+<Card className="bg-yellow-100 dark:bg-yellow-600 my-4">
+  <CardContent className="p-3">
+    <div className="flex items-center">
+        <CircleAlert className="size-4 inline-block mr-2" />
+        <div className="text-sm font-medium">
+            Documentation is time-sensitive
+        </div>
+    </div>
+    
+    <div className="text-sm font-medium ml-6 mt-4">
+        As the `TD Cloud` User Center pages/functionality and client software may be constantly updated, some of the documentation may be out of date, so please avoid copying it. If any documentation is significantly out of date, please contact us via `Telegram` or send us an e-mail.
+    </div>
+
+  </CardContent>
+</Card>
+
+<Card className="bg-red-100 dark:bg-red-600 my-4">
+  <CardContent className="p-3">
+    <div className="flex items-center">
+        <TriangleAlert className="size-4 inline-block mr-2" />
+        <div className="text-sm font-medium">
+            If our goods and services are network services, please check whether your network environment supports their use!
+        </div>
+    </div>
+    
+    <div className="text-sm font-medium ml-6 mt-4">
+        Unless expressly stated, you should be clear that we do not collect any information about you, except for the necessary account authentication and other information, if you are unable to accept the service process and request network optimization, please do not choose the
+    </div>
+
+  </CardContent>
+</Card>

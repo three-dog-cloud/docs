@@ -1,0 +1,56 @@
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+
+### 三狗币
+
+> 一个平台自带货币系统（未来也有可能会弄一个区块链）但是本质上与积分、余额等价
+
+### 兑换比例
+
+<Card className="my-4 items-center justify-center px-14 mx-14">
+  <CardContent className="p-3">
+    <Table className="mt-2">
+      <TableCaption>
+        铜币作为最小货币单位进行使用，兑换率为 1:100, 例如 铜币到银币 则 1
+        银币=100 铜币
+        表格所示为人民币兑换比例，不同货币可能有浮动，请以实际到账为准。
+      </TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="text-center">名称</TableHead>
+          <TableHead className="text-center">单位（数量）</TableHead>
+          <TableHead className="text-center">兑换比</TableHead>
+          <TableHead className="text-center">价格</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody className="text-center">
+        <TableRow>
+          <TableCell>铜币</TableCell>
+          <TableCell>1</TableCell>
+          <TableCell>1:1</TableCell>
+          <TableCell>￥0.01</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>银币</TableCell>
+          <TableCell>1</TableCell>
+          <TableCell>1:100</TableCell>
+          <TableCell>￥1</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>金币</TableCell>
+          <TableCell>1</TableCell>
+          <TableCell>1:10000</TableCell>
+          <TableCell>￥100</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </CardContent>
+</Card>

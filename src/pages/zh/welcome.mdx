@@ -1,0 +1,56 @@
+import { CircleAlert, Info, TriangleAlert } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+
+<div className="overflow-hidden -mx-4 sm:mx-auto sm:rounded-md mb-8 my-4">
+  <img
+    alt="Page cover image"
+    class="w-full object-cover object-center block min-w-sm h-48"
+    src="/index-header.jpg"
+  />
+</div>
+
+# 欢迎来到三狗文档中心！
+
+<Card className="bg-sky-50 dark:bg-sky-600 my-4">
+  <CardContent className="p-3">
+    <div className="flex items-center">
+      <Info className="size-4 inline-block mr-2" />
+      <div className="text-sm font-medium">
+        要查看文档，请点击侧边栏的相关文章
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+<Card className="bg-yellow-100 dark:bg-yellow-600 my-4">
+  <CardContent className="p-3">
+    <div className="flex items-center">
+        <CircleAlert className="size-4 inline-block mr-2" />
+        <div className="text-sm font-medium">
+            文档存在时效性
+        </div>
+    </div>
+    
+    <div className="text-sm font-medium ml-6 mt-4">
+        由于 `TD Cloud` 用户中心的页面/功能和客户端软件都可能不断更新，因此一些文档的描述可能过时，请避免一味照搬。如果有文档已经严重过时，请通过
+        `Telegram` 联系我们，或发送邮件联系我们。
+    </div>
+
+  </CardContent>
+</Card>
+
+<Card className="bg-red-100 dark:bg-red-600 my-4">
+  <CardContent className="p-3">
+    <div className="flex items-center">
+        <TriangleAlert className="size-4 inline-block mr-2" />
+        <div className="text-sm font-medium">
+            如果我们的商品、服务属于网络服务，请确认您所处网络环境是否支持使用！
+        </div>
+    </div>
+    
+    <div className="text-sm font-medium ml-6 mt-4">
+        除非明确声明，您应当明确，我们并未收集您的任何信息，除非必要的账户认证等信息，如果您无法接受服务流程与请求网络优化，请勿选择
+    </div>
+
+  </CardContent>
+</Card>
