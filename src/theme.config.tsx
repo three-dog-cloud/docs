@@ -41,19 +41,21 @@ export default {
     const { t, currentLocale } = useLocale();
 
     return (
-      <Link
-        href={`/${currentLocale}`}
-        className="flex items-center justify-center font-bold text-3xl space-x-2"
-      >
-        <Image
-          src="/logo.jpg"
-          width={40}
-          height={40}
-          alt={t("siteTitle")}
-          className="rounded-full object-cover md:object-scale-down"
-        />
-        <span className="text-xl">{t("siteTitle")}</span>
-      </Link>
+      <div>
+        <Link
+          href={`/${currentLocale}`}
+          className="flex items-center justify-center font-bold text-3xl space-x-2"
+        >
+          <Image
+            src="/logo.jpg"
+            width={40}
+            height={40}
+            alt={t("siteTitle")}
+            className="rounded-full object-cover md:object-scale-down"
+          />
+          <span className="text-xl">{t("siteTitle")}</span>
+        </Link>
+      </div>
     );
   },
   footer: {
