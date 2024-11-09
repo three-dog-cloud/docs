@@ -10,11 +10,12 @@ const withNextra = createWithNextra({
  * @type {import("next").NextConfig}
  */
 export default withNextra({
+  output: "export",
   images: {
     unoptimized: true,
   },
   reactStrictMode: true,
-  distDir: "./.next",
+  distDir: "./out",
   i18n: {
     locales: ["zh", "en"],
     defaultLocale: "zh",
