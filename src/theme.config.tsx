@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import LocaleToggle from "./widgets/locale-toggle";
 import ThemeToggle from "./widgets/theme-toggle";
 
-const repo = "https://github.com/three-dog-cloud/docs";
+const repo = "https://github.com/three-dog-cloud/docs/tree/main";
 
 export default {
   docsRepositoryBase: repo,
