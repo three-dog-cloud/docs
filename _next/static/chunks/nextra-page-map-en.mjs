@@ -1,4 +1,5 @@
 import en_meta from "../../../src/pages/en/_meta.ts";
+import en_currency_meta from "../../../src/pages/en/currency/_meta.ts";
 import en_faqs_meta from "../../../src/pages/en/faqs/_meta.ts";
 export const pageMap = [{
   data: en_meta
@@ -8,6 +9,18 @@ export const pageMap = [{
   frontMatter: {
     "sidebarTitle": "Change Log"
   }
+}, {
+  name: "currency",
+  route: "/en/currency",
+  children: [{
+    data: en_currency_meta
+  }, {
+    name: "handling_charge",
+    route: "/en/currency/handling_charge",
+    frontMatter: {
+      "sidebarTitle": "Handling Charge"
+    }
+  }]
 }, {
   name: "currency",
   route: "/en/currency",
