@@ -5,9 +5,8 @@ import { DocsThemeConfig, useConfig } from "nextra-theme-docs";
 import { useRouter } from "next/router";
 import LocaleToggle from "./widgets/locale-toggle";
 import ThemeToggle from "./widgets/theme-toggle";
-import Link from "next/link";
 
-const repo = "https://github.com/three-dog-cloud/docs/tree/main";
+const repo = "https://github.com/three-dog-cloud/docs";
 
 export default {
   docsRepositoryBase: repo,
@@ -38,23 +37,18 @@ export default {
   },
   logoLink: true,
   logo: () => {
-    const { t, currentLocale } = useLocale();
+    const { t } = useLocale();
 
     return (
-      <div>
-        <Link
-          href={`/${currentLocale}`}
-          className="flex items-center justify-center font-bold text-3xl space-x-2"
-        >
-          <Image
-            src="/logo.jpg"
-            width={40}
-            height={40}
-            alt={t("siteTitle")}
-            className="rounded-full object-cover md:object-scale-down"
-          />
-          <span className="text-xl">{t("siteTitle")}</span>
-        </Link>
+      <div className="flex items-center justify-center font-bold text-3xl space-x-2">
+        <Image
+          src="/logo.jpg"
+          width={40}
+          height={40}
+          alt={t("siteTitle")}
+          className="rounded-full object-cover md:object-scale-down"
+        />
+        <span className="text-xl">{t("siteTitle")}</span>
       </div>
     );
   },

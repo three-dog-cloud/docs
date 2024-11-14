@@ -4,11 +4,6 @@ export default {
         type: "page",
         href: '/en/welcome'
     },
-    discourse: {
-        title: 'Discourse',
-        type: "page",
-        href: 'https://tdcloud.cc'
-    },
     index: {
         display: 'hidden',
         theme: {
@@ -16,12 +11,15 @@ export default {
         },
     },
     welcome: '🏠 Welcome',
-    currency: '💱 Currency',
     "---1": {
         "type": "separator"
     },
-    fasq: "🧐 FASQ",
+    currency: '💱 Currency',
     "---2": {
+        "type": "separator"
+    },
+    fasq: "🧐 FASQ",
+    "---3": {
         "type": "separator"
     },
     'change-log': '📝 Update Log'
