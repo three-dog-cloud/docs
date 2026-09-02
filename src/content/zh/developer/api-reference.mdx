@@ -1,0 +1,65 @@
+# OpenAPI 速查
+
+OpenAPI 使用 OAuth Access Token。除令牌端点外，请在请求头中发送：
+
+```http filename="请求头"
+Authorization: Bearer {ACCESS_TOKEN}
+```
+
+本文只列出当前已经接入路由的能力。请求与响应字段可能继续扩充，接入方应忽略未知字段。
+
+## OAuth 与身份
+
+| 方法 | 路径 | Scope | 说明 |
+| --- | --- | --- | --- |
+| `GET` / `POST` | `/oauth/authorize` | 客户端申请范围内 | 读取授权信息 / 提交用户授权 |
+| `POST` | `/oauth/token` | — | 授权码、刷新令牌或 Client Credentials 换取令牌 |
+| `GET` | `/oauth/userinfo` | `openid` | 获取授权主体；`profile` 决定是否返回基础资料 |
+
+## 商户与商品
+
+| 方法 | 路径 | Scope | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/openapi/v1/merchant` | `merchant.profile.read` | 获取绑定商户公开资料 |
+| `GET` | `/openapi/v1/products` | `products.read` | 分页查询绑定商户已启用商品 |
+
+商品列表支持 `page`、`limit`、`gd_no` 和 `search_value`。`limit` 最大为 100。
+
+## 订单与支付
+
+以下接口要求用户授权令牌，且订单必须属于当前授权用户和客户端绑定商户。
+
+| 方法 | 路径 | Scope | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/openapi/v1/orders` | `orders.create` | 创建订单 |
+| `GET` | `/openapi/v1/orders/{order_no}` | `orders.read` | 获取订单详情 |
+| `POST` | `/openapi/v1/orders/{order_no}/payment` | `payments.create` | 创建支付会话 |
+| `GET` | `/openapi/v1/orders/{order_no}/payment` | `payments.read` | 查询支付状态 |
+
+创建订单示例：
+
+```json filename="创建订单请求"
+{
+  "gd_no": "PRODUCT_NO",
+  "quantity": 1,
+  "payment_no": "PAYMENT_CHANNEL_NO",
+  "other_ipu": {}
+}
+```
+
+成功时返回 HTTP `201`：
+
+```json filename="201 Created"
+{
+  "order_no": "ORDER_NO"
+}
+```
+
+## 调用约束
+
+- 不要通过前端代码暴露机密客户端的 Secret。
+- 只请求业务实际需要的最小 Scope。
+- 金额字段按整数和对应小数位处理。
+- 遇到 `401 invalid_token` 应重新授权或刷新令牌；遇到 `403 insufficient_scope` 不应盲目重试。
+- 商户停用会返回 `merchant_inactive`，需先恢复商户状态。
+- 订单创建和支付操作应由接入方设置幂等保护，避免用户重复点击造成重复请求。

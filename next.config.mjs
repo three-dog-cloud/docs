@@ -1,30 +1,20 @@
 import createWithNextra from "nextra";
 
 const withNextra = createWithNextra({
-  theme: "nextra-theme-docs",
-  themeConfig: "./src/theme.config.tsx",
   defaultShowCopyCode: true,
+  contentDirBasePath: "/",
+  codeHighlight: true,
 });
 
 /**
  * @type {import("next").NextConfig}
  */
 export default withNextra({
+  agentRules: false,
   output: "export",
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },
   reactStrictMode: true,
-  distDir: "./out",
-  i18n: {
-    locales: ["zh", "en"],
-    defaultLocale: "zh",
-  },
-  redirects: () => [
-    {
-      source: "/",
-      destination: "/zh",
-      permanent: true,
-    },
-  ],
 });

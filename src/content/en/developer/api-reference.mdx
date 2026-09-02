@@ -1,0 +1,65 @@
+# OpenAPI Quick Reference
+
+OpenAPI uses OAuth access tokens. Except for the token endpoint, send:
+
+```http filename="Request header"
+Authorization: Bearer {ACCESS_TOKEN}
+```
+
+Only currently routed capabilities are listed here. Responses may gain fields over time, so clients should ignore unknown fields.
+
+## OAuth and identity
+
+| Method | Path | Scope | Description |
+| --- | --- | --- | --- |
+| `GET` / `POST` | `/oauth/authorize` | Within the client grant | Read consent data / submit consent |
+| `POST` | `/oauth/token` | — | Exchange a code, refresh token, or client credentials |
+| `GET` | `/oauth/userinfo` | `openid` | Read the subject; `profile` controls basic profile fields |
+
+## Merchant and products
+
+| Method | Path | Scope | Description |
+| --- | --- | --- | --- |
+| `GET` | `/openapi/v1/merchant` | `merchant.profile.read` | Read the bound merchant's public profile |
+| `GET` | `/openapi/v1/products` | `products.read` | Paginate enabled products for the bound merchant |
+
+Product listing supports `page`, `limit`, `gd_no`, and `search_value`. The maximum `limit` is 100.
+
+## Orders and payments
+
+These endpoints require a user-authorized token. The order must belong to both the authorized user and the bound merchant.
+
+| Method | Path | Scope | Description |
+| --- | --- | --- | --- |
+| `POST` | `/openapi/v1/orders` | `orders.create` | Create an order |
+| `GET` | `/openapi/v1/orders/{order_no}` | `orders.read` | Read order details |
+| `POST` | `/openapi/v1/orders/{order_no}/payment` | `payments.create` | Create a payment session |
+| `GET` | `/openapi/v1/orders/{order_no}/payment` | `payments.read` | Read payment status |
+
+Create-order request:
+
+```json filename="Create-order request"
+{
+  "gd_no": "PRODUCT_NO",
+  "quantity": 1,
+  "payment_no": "PAYMENT_CHANNEL_NO",
+  "other_ipu": {}
+}
+```
+
+A successful response uses HTTP `201`:
+
+```json filename="201 Created"
+{
+  "order_no": "ORDER_NO"
+}
+```
+
+## Integration constraints
+
+- Never expose a confidential client's secret in frontend code.
+- Request only the minimum scopes the application uses.
+- Interpret amount integers using the matching decimal precision.
+- Reauthorize or refresh on `401 invalid_token`; do not blindly retry `403 insufficient_scope`.
+- `merchant_inactive` means the merchant must be re-enabled first.
+- Apply idempotency protection around order and payment actions to prevent duplicate user submissions.

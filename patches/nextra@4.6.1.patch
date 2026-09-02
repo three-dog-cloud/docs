@@ -1,0 +1,128 @@
+diff --git a/dist/client/mdx-components.js b/dist/client/mdx-components.js
+index 99aa9e1..36d4de3 100644
+--- a/dist/client/mdx-components.js
++++ b/dist/client/mdx-components.js
+@@ -1,7 +1,7 @@
+-import { ImageZoom } from "./components/image-zoom.js";
++import { Image } from "./mdx-components/image.js";
+ import { Anchor } from "./mdx-components/anchor.js";
+ const DEFAULT_COMPONENTS = {
+-  img: ImageZoom,
++  img: Image,
+   a: Anchor
+ };
+ const useMDXComponents = (components) => {
+diff --git a/dist/server/compile.js b/dist/server/compile.js
+index a695ed7..91a14fd 100644
+--- a/dist/server/compile.js
++++ b/dist/server/compile.js
+@@ -1,20 +1,15 @@
+ import { createProcessor } from "@mdx-js/mdx";
+-import { remarkMermaid } from "@theguild/remark-mermaid";
+ import { remarkNpm2Yarn } from "@theguild/remark-npm2yarn";
+-import rehypeKatex from "rehype-katex";
+ import rehypePrettyCode from "rehype-pretty-code";
+ import rehypeRaw from "rehype-raw";
+ import remarkFrontmatter from "remark-frontmatter";
+ import remarkGfm from "remark-gfm";
+-import remarkMath from "remark-math";
+-import remarkReadingTime from "remark-reading-time";
+ import remarkSmartypants from "remark-smartypants";
+ import { MARKDOWN_URL_EXTENSION_RE } from "./constants.js";
+ import { recmaRewrite } from "./recma-plugins/index.js";
+ import {
+   DEFAULT_REHYPE_PRETTY_CODE_OPTIONS,
+   rehypeAttachCodeMeta,
+-  rehypeBetterReactMathjax,
+   rehypeExtractTocContent,
+   rehypeParseCodeMeta,
+   rehypeTwoslashPopup
+@@ -79,7 +74,6 @@ async function compileMdx(rawMdx, {
+       development: process.env.NODE_ENV === "development",
+       remarkPlugins: [
+         ...remarkPlugins || [],
+-        remarkMermaid,
+         // should be before remarkRemoveImports because contains `import { Mermaid } from ...`
+         [
+           remarkNpm2Yarn,
+@@ -94,7 +88,6 @@ async function compileMdx(rawMdx, {
+         remarkFrontmatter,
+         // parse and attach yaml node
+         remarkMdxFrontMatter,
+-        readingTime && remarkReadingTime,
+         // before mdx title
+         remarkCustomHeadingId,
+         remarkMdxTitle,
+@@ -107,7 +100,6 @@ async function compileMdx(rawMdx, {
+         ],
+         [remarkHeadings, { isRemoteContent }],
+         staticImage && remarkStaticImage,
+-        latex && remarkMath,
+         // Remove the markdown file extension from links
+         [
+           remarkLinkRewrite,
+@@ -131,8 +123,6 @@ async function compileMdx(rawMdx, {
+           }
+         ],
+         [rehypeParseCodeMeta, { defaultShowCopyCode }],
+-        // Should be before `rehypePrettyCode`
+-        latex && (typeof latex === "object" ? latex.renderer === "mathjax" ? [rehypeBetterReactMathjax, latex.options, isRemoteContent] : [rehypeKatex, latex.options] : rehypeKatex),
+         ...codeHighlight === false ? [] : [
+           [
+             rehypePrettyCode,
+diff --git a/dist/server/index.js b/dist/server/index.js
+index 404681c..1d7aaa0 100644
+--- a/dist/server/index.js
++++ b/dist/server/index.js
+@@ -92,16 +92,6 @@ const nextra = (nextraConfig) => {
+       },
+       resolveAlias: {
+         "next-mdx-import-source-file": "@vercel/turbopack-next/mdx-import-source",
+-        // Fixes when Turbopack is enabled: Module not found: Can't resolve '@theguild/remark-mermaid/mermaid'
+-        "@theguild/remark-mermaid/mermaid": path.relative(
+-          CWD,
+-          path.join(
+-            require2.resolve("@theguild/remark-mermaid/package.json"),
+-            "..",
+-            "dist",
+-            "mermaid.js"
+-          )
+-        ),
+         ...turbopackConfig.resolveAlias,
+         "private-next-root-dir/*": "./*",
+         "private-next-content-dir/*": `./${CONTENT_DIR}/*`
+diff --git a/dist/server/rehype-plugins/rehype.js b/dist/server/rehype-plugins/rehype.js
+index 2c9560a..35f27ef 100644
+--- a/dist/server/rehype-plugins/rehype.js
++++ b/dist/server/rehype-plugins/rehype.js
+@@ -1,4 +1,4 @@
+-import { bundledLanguages, createHighlighter } from "shiki";
++import { createHighlighter } from "shiki";
+ import { SKIP, visit } from "unist-util-visit";
+ const CODE_BLOCK_FILENAME_RE = /filename="([^"]+)"/;
+ const DEFAULT_REHYPE_PRETTY_CODE_OPTIONS = {
+@@ -19,7 +19,23 @@ const DEFAULT_REHYPE_PRETTY_CODE_OPTIONS = {
+   },
+   filterMetaString: (meta) => meta.replace(CODE_BLOCK_FILENAME_RE, ""),
+   getHighlighter(opts) {
+-    const langs = Object.keys(bundledLanguages).filter((l) => l !== "mermaid");
++    const langs = [
++      "bash",
++      "css",
++      "go",
++      "html",
++      "http",
++      "javascript",
++      "json",
++      "jsx",
++      "markdown",
++      "plaintext",
++      "powershell",
++      "sql",
++      "tsx",
++      "typescript",
++      "yaml"
++    ];
+     return createHighlighter({
+       ...opts,
+       // Without `getHighlighter` option ```mdx lang isn't highlighted

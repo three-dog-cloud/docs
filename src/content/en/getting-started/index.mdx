@@ -1,0 +1,31 @@
+# Platform and Roles
+
+TD Cloud is a self-hosted marketplace and anonymous transaction platform. A regular user can manage an account, hold TDC, top up, browse products, and create orders. Merchant and developer capabilities are enabled through invitation and review.
+
+## Account roles
+
+| Role | Main capabilities | How it is granted |
+| --- | --- | --- |
+| User | Account, wallet, top-up, marketplace, and orders | Granted on registration |
+| Merchant | Store profile, products, orders, and payment channels | Receive an invitation, submit an application, and pass review |
+| Developer | OAuth client, user authorization, and OpenAPI | Receive an invitation, submit an application, and pass review |
+
+An account may hold multiple roles. Administrative privileges do not automatically make an account a merchant or developer.
+
+## Why an entry point is missing
+
+Merchant Center and Developer Center are permission-driven routes:
+
+1. No application entry is shown before an invitation.
+2. After an invitation, the application entry appears in the profile menu.
+3. The entry remains available after submission so the user can track review progress.
+4. After approval, the application entry disappears and the corresponding center appears in the sidebar.
+5. A rejected application can display the reason and be edited and resubmitted.
+
+Sign in again or refresh after a permission change. If the route is still missing, contact platform support to verify the account status.
+
+## Current boundaries
+
+- Each account may own at most one OAuth client.
+- Transaction scopes must bind to the same account's active merchant.
+- Merchant onboarding uses a simple platform review.

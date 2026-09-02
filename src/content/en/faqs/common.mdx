@@ -1,0 +1,29 @@
+# Common Questions
+
+## Why can I not see Merchant Center or Developer Center?
+
+Both are invitation-only. The application entry appears in the profile menu after an invitation; the corresponding center appears only after approval. Sign in again after a permission change to refresh routes.
+
+## Why does the application entry remain after submission?
+
+It remains available so you can track review progress. It disappears after approval, when the permanent center is granted. A rejected application also uses this entry to show the reason and allow resubmission.
+
+## Where can I see the TDC credit before paying?
+
+After choosing a channel and amount, the confirmation area shows the expected TDC credit, fee, and total payable. If the expected credit cannot currently be displayed, payment remains unavailable; choose another channel or try again later.
+
+## Is `client_secret` a data encryption key?
+
+No. It authenticates a confidential OAuth client at the token endpoint. HTTPS encrypts transport, access tokens authorize API calls, and a platform JWT signing key signs and verifies tokens.
+
+## Why does a public client have no secret?
+
+Browser, mobile, and desktop applications cannot reliably hide an embedded secret. Public clients use Authorization Code + PKCE instead of pretending an embedded `client_secret` is confidential.
+
+## What if a secret leaks?
+
+Rotate it immediately in Developer Center, update the server-side configuration, and stop using the old value. The new secret is shown only once. Never place it in frontend code, logs, or a public repository.
+
+## Why can I not request merchant scopes?
+
+Merchant scopes can only bind to the applicant's own approved and active merchant. Complete merchant onboarding first, or request only user scopes such as `openid` and `profile`.

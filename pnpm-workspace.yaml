@@ -1,0 +1,13 @@
+packages:
+  - .
+
+minimumReleaseAge: 1440
+
+# Static export uses unoptimized images, so native Sharp binaries are unnecessary.
+ignoredOptionalDependencies:
+  - '@img/sharp-libvips-win32-x64'
+  - '@img/sharp-win32-x64'
+
+patchedDependencies:
+  nextra@4.6.1: patches/nextra@4.6.1.patch
+  nextra-theme-docs@4.6.1: patches/nextra-theme-docs@4.6.1.patch

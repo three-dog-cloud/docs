@@ -1,0 +1,54 @@
+# Scopes and Merchant Binding
+
+Scopes define the maximum capabilities an application can request. User consent cannot grant scopes beyond the client's approved set.
+
+## User identity scopes
+
+| Scope | Capability | Merchant required? |
+| --- | --- | --- |
+| `openid` | Pairwise subject and ID Token | No |
+| `profile` | Basic user profile | No |
+
+`openid` requires a `nonce`. A “Sign in with TD Cloud” integration normally requests only `openid profile`.
+
+## Merchant and transaction scopes
+
+| Scope | Capability | Actor |
+| --- | --- | --- |
+| `merchant.profile.read` | Read bound merchant public profile | User or Client Credentials |
+| `products.read` | Read enabled products for the bound merchant | User or Client Credentials |
+| `orders.create` | Create an order for the authorized user | User only |
+| `orders.read` | Read the user's orders created through the app | User only |
+| `payments.create` | Start payment for an accessible order | User only |
+| `payments.read` | Read payment status for an accessible order | User only |
+
+## Enforced merchant binding
+
+If any merchant or transaction scope is requested, the server ignores a client-supplied merchant number and binds the applicant's own approved, active merchant.
+
+This means:
+
+- a sign-in client does not require a merchant;
+- merchant scopes cannot be requested without an active merchant;
+- a client cannot name another account's merchant;
+- related OpenAPI calls fail after the bound merchant is disabled;
+- switching back to identity-only scopes removes the merchant association.
+
+## Client Credentials restriction
+
+Only a confidential, merchant-bound client can use `client_credentials`. The current flow allows only:
+
+```text filename="Allowed scopes"
+merchant.profile.read products.read
+```
+
+Order and payment operations require a real user authorization.
+
+```bash filename="Client Credentials"
+curl -X POST "{API_BASE_URL}/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=client_credentials" \
+  --data-urlencode "client_id={CLIENT_ID}" \
+  --data-urlencode "client_secret={CLIENT_SECRET}" \
+  --data-urlencode "scope=merchant.profile.read products.read"
+```

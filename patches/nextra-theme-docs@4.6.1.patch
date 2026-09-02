@@ -1,0 +1,31 @@
+diff --git a/dist/layout.js b/dist/layout.js
+--- a/dist/layout.js
++++ b/dist/layout.js
+@@ -27,7 +27,7 @@ const Layout = (t0) => {
+     const {
+       data: t12,
+       error
+-    } = LayoutPropsSchema.safeParse(themeConfig);
++    } = LayoutPropsSchema.safeParse({ ...themeConfig, children });
+     data = t12;
+     if (error) {
+       throw z.prettifyError(error);
+diff --git a/dist/schemas.js b/dist/schemas.js
+--- a/dist/schemas.js
++++ b/dist/schemas.js
+@@ -1,5 +1,4 @@
+ import { jsx } from "react/jsx-runtime";
+-import { Search } from "nextra/components";
+ import { element, reactNode } from "nextra/schemas";
+ import { Fragment } from "react";
+ import { z } from "zod";
+@@ -129,8 +128,7 @@ import { Layout, LastUpdated } from 'nextra-theme-docs'
+   })).meta({
+     description: "Page map list. Result of `getPageMap(route = '/')` call."
+   }),
+-  search: reactNode.default(() => /* @__PURE__ */ jsx(Search, {})).meta({
+-    default: "<Search />",
++  search: reactNode.optional().meta({
+     description: "Rendered [`<Search>` component](/docs/built-ins/search). E.g. `<Search {...searchProps} />`"
+   }),
+   sidebar: sidebarSchema.default(sidebarSchema.parse({})),

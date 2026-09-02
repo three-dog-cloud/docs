@@ -1,0 +1,40 @@
+# OAuth Clients and Credentials
+
+An OAuth client represents an application that requests user authorization or calls OpenAPI. Client type and `client_secret` are the two concepts most often confused.
+
+## Public and confidential clients
+
+| Type | Typical use | Client Secret | Recommended flow |
+| --- | --- | --- | --- |
+| Public | Browser SPA, mobile, desktop | Not issued | Authorization Code + PKCE |
+| Confidential | An application with a backend that can protect server configuration | Issued and validated | Authorization Code + PKCE; Client Credentials when eligible |
+
+A public client is not a client with a weaker secret. It has no location that can reliably keep one, so the platform relies on PKCE instead.
+
+## Values with different responsibilities
+
+| Value | Public? | Purpose |
+| --- | --- | --- |
+| `client_id` | Yes | Identifies the application |
+| `client_secret` | No | Authenticates a confidential client at the token endpoint |
+| `access_token` | No | Calls APIs as an authorized user or client |
+| JWT signing key | No; platform only | Signs and validates tokens |
+
+HTTPS encrypts transport between the application and platform. A `client_secret` does not encrypt business data and cannot replace HTTPS or database encryption.
+
+## Secret storage and rotation
+
+- Store the secret only in server-side secret management or environment configuration.
+- Never include it in a frontend bundle, mobile binary, public repository, or logs.
+- The platform stores a one-way hash and cannot recover the previous cleartext value.
+- A rotated secret is displayed once; save it immediately.
+- Rotate immediately after suspected exposure and update the application server. The old secret stops working.
+
+## Redirect URI rules
+
+- Production URIs must use HTTPS.
+- HTTP is allowed for `localhost` and `127.0.0.1` during local development.
+- A URI must not contain a URL fragment (`#...`).
+- The `redirect_uri` used during authorization and token exchange must match the registered value exactly.
+
+Do not register an open redirect as a callback and do not log authorization codes.

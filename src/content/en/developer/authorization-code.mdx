@@ -1,0 +1,78 @@
+# Authorization Code and PKCE
+
+Every user-authorizing client must use Authorization Code + PKCE with S256. Confidential clients must use PKCE as well.
+
+## 1. Generate request values
+
+- `code_verifier`: a random string of 43 to 128 allowed characters;
+- `code_challenge`: unpadded `BASE64URL(SHA256(code_verifier))`;
+- `state`: prevents CSRF and correlates the request;
+- `nonce`: required when requesting `openid` and used to validate the ID Token.
+
+Keep `code_verifier`, `state`, and `nonce` in the initiating session.
+
+## 2. Open the authorization page
+
+```text filename="Authorization URL"
+{PLATFORM_URL}/oauth/authorize
+  ?response_type=code
+  &client_id={CLIENT_ID}
+  &redirect_uri=https%3A%2F%2Fapp.example.com%2Foauth%2Fcallback
+  &scope=openid%20profile
+  &state={RANDOM_STATE}
+  &nonce={RANDOM_NONCE}
+  &code_challenge={S256_CHALLENGE}
+  &code_challenge_method=S256
+```
+
+After sign-in, the user reviews the application, scopes, and redirect URI. Approval returns `code` and the original `state`; denial returns `error=access_denied`.
+
+Validate `state` before using the code. An authorization code expires after five minutes and is single-use.
+
+## 3. Exchange the code
+
+```bash filename="Exchange the code"
+curl -X POST "{API_BASE_URL}/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=authorization_code" \
+  --data-urlencode "client_id={CLIENT_ID}" \
+  --data-urlencode "code={AUTHORIZATION_CODE}" \
+  --data-urlencode "code_verifier={CODE_VERIFIER}" \
+  --data-urlencode "redirect_uri=https://app.example.com/oauth/callback"
+```
+
+A confidential client also sends `client_secret={CLIENT_SECRET}`. A successful response contains `access_token`, `refresh_token`, `id_token`, `token_type`, `expires_in`, and the granted `scope`.
+
+## 4. Read user information
+
+```bash filename="Read user information"
+curl "{API_BASE_URL}/oauth/userinfo" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+```
+
+`openid` supplies a stable pairwise `sub`. With `profile`, the response also includes the basic profile fields the platform permits. Link local accounts by `sub`, not by username.
+
+## 5. Refresh tokens
+
+```bash filename="Refresh tokens"
+curl -X POST "{API_BASE_URL}/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=refresh_token" \
+  --data-urlencode "client_id={CLIENT_ID}" \
+  --data-urlencode "refresh_token={REFRESH_TOKEN}"
+```
+
+Confidential clients also send their secret. A refresh token is consumed and replaced with a new token set. Atomically store the new values and do not refresh the same token concurrently.
+
+## Errors
+
+OAuth errors have the following shape:
+
+```json filename="OAuth error response"
+{
+  "error": "invalid_grant",
+  "error_description": "..."
+}
+```
+
+Common errors include `invalid_request`, `invalid_client`, `invalid_grant`, `invalid_scope`, `access_denied`, `invalid_token`, and `insufficient_scope`. Never log complete tokens, secrets, or authorization codes.

@@ -1,0 +1,54 @@
+# Scope 与商户绑定
+
+Scope 决定应用能请求哪些平台能力。申请客户端时选择的是能力上限，用户授权时只能在这个上限内授权。
+
+## 用户身份 Scope
+
+| Scope | 能力 | 是否需要商户 |
+| --- | --- | --- |
+| `openid` | 获取成对主体标识和 ID Token | 否 |
+| `profile` | 读取用户基础资料 | 否 |
+
+请求 `openid` 时必须同时提供 `nonce`。只做“使用三狗云服务登录”的应用通常申请 `openid profile` 即可。
+
+## 商户与交易 Scope
+
+| Scope | 能力 | 可用主体 |
+| --- | --- | --- |
+| `merchant.profile.read` | 读取绑定商户公开资料 | 用户授权、Client Credentials |
+| `products.read` | 读取绑定商户已启用商品 | 用户授权、Client Credentials |
+| `orders.create` | 代表已授权用户在绑定商户下单 | 仅用户授权 |
+| `orders.read` | 读取该用户通过应用创建的订单 | 仅用户授权 |
+| `payments.create` | 为可访问订单发起支付 | 仅用户授权 |
+| `payments.read` | 查询可访问订单的支付状态 | 仅用户授权 |
+
+## 强制商户绑定
+
+只要申请中包含任何商户或交易 Scope，平台会忽略客户端提交的商户编号，并自动绑定申请人自己已审核通过且处于启用状态的商户。
+
+因此：
+
+- 没有商户也可以申请统一登录客户端；
+- 没有启用中的商户时不能申请店铺 Scope；
+- 客户端不能填写其他人的商户编号跨店访问；
+- 绑定商户被停用后，相关 OpenAPI 调用会被拒绝；
+- 改回纯用户 Scope 后，客户端不应继续保留商户绑定。
+
+## Client Credentials 的限制
+
+只有“机密客户端 + 已绑定商户”才能使用 `client_credentials`。当前该流程只允许：
+
+```text filename="允许的 Scope"
+merchant.profile.read products.read
+```
+
+订单创建和支付必须有真实用户授权，不能用纯客户端身份替代用户。
+
+```bash filename="Client Credentials"
+curl -X POST "{API_BASE_URL}/oauth/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=client_credentials" \
+  --data-urlencode "client_id={CLIENT_ID}" \
+  --data-urlencode "client_secret={CLIENT_SECRET}" \
+  --data-urlencode "scope=merchant.profile.read products.read"
+```
