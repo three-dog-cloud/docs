@@ -26,6 +26,24 @@ body {
   font-size: 0.875rem;
 }
 
+.website-link {
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--x-color-primary-600);
+  text-underline-offset: 0.2em;
+}
+
+.website-link:hover {
+  text-decoration: underline;
+}
+
+.website-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
 .locale-links a[aria-current="page"] {
   color: var(--x-color-primary-600);
   font-weight: 600;
@@ -363,6 +381,17 @@ body {
     flex-wrap: wrap;
   }
 
+}
+
+@media (max-width: 480px) {
+  .site-navbar {
+    gap: 0.5rem;
+    padding-inline: 1rem;
+  }
+
+  .site-logo strong {
+    display: none;
+  }
 }
 
 @media (min-width: 768px) {

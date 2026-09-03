@@ -49,6 +49,7 @@ export default async function LocaleLayout({
   const isZh = lang === "zh";
   const navbar = (
     <Navbar
+      className="site-navbar"
       logo={
         <span className="site-logo">
           <img className="site-logo-image" src="/logo.jpg" width="40" height="40" alt="" />
@@ -58,6 +59,15 @@ export default async function LocaleLayout({
       logoLink={`/${lang}/`}
       projectLink="https://github.com/three-dog-cloud/docs"
     >
+      <a
+        className="website-link"
+        href="https://tdcloud.cc"
+        target="_blank"
+        rel="noopener noreferrer"
+        title={isZh ? "打开三狗云官网（新标签页）" : "Open TD Cloud website (new tab)"}
+      >
+        {isZh ? "官网" : "Website"} <span aria-hidden="true">↗</span>
+      </a>
       <span className="locale-links" aria-label={isZh ? "切换语言" : "Switch language"}>
         <a aria-current={isZh ? "page" : undefined} href="/zh/">中文</a>
         <span aria-hidden="true"> / </span>
