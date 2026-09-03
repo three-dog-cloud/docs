@@ -4,9 +4,9 @@
 
 ## 本地开发
 
-环境要求：Node.js 22 或更高版本、pnpm 11。
+环境要求：Node.js 22.22.3（见 `.node-version`）、pnpm 11.7.0（见 `package.json#packageManager`）。
 
-GitHub Actions 使用 Node.js 22，pnpm 精确版本自动读取 `package.json` 的 `packageManager` 字段。CI 依次执行 `pnpm install --frozen-lockfile`、`pnpm exec next typegen`、`pnpm typecheck` 和 `pnpm build`；先生成路由类型，确保全新检出时也能完成类型检查。升级 pnpm 时应同步更新 `packageManager` 和锁文件，不需要在工作流中重复指定版本。
+Cloudflare Pages 负责安装依赖、校验、构建与发布。GitHub Actions 只保留手动校验入口，使用相同的 `pnpm run ci`，不会发布网站。升级 Node.js 或 pnpm 时，同步更新版本文件与 Cloudflare 的构建环境变量。
 
 ```bash
 pnpm install
@@ -18,19 +18,58 @@ pnpm dev
 ## 检查与构建
 
 ```bash
-pnpm typecheck
-pnpm build
+pnpm install --frozen-lockfile
+pnpm run ci
 ```
 
 构建结果输出到 `out/`，可直接部署到支持静态文件的网站服务。项目启用了尾斜杠路由，因此 `/zh/welcome/` 对应 `out/zh/welcome/index.html`，不依赖服务器额外配置无扩展名重写。
 
-发布沿用 `main → GitHub Actions → out/ → gh-pages`，不在本次调整中变更 Cloudflare 项目的分支或构建设置。PR 只验证构建，不发布；`main` 推送或在 Actions 的 `Deploy static content` 中选择 `Run workflow`（分支选 `main`）可执行发布。
+`pnpm run ci` 按顺序执行路由类型生成、TypeScript 检查、回归测试、Next.js 静态构建和产物校验；任一步失败都会停止发布。校验通过后才生成 `out/deployment.json`，其中 `commit` 来自 Cloudflare 的 `CF_PAGES_COMMIT_SHA`。手动 GitHub 校验使用 `GITHUB_SHA`；本地构建使用当前 Git HEAD，本地未提交改动不会体现在这个 SHA 中。
 
-CI 在发布前运行 `node scripts/verify-export.mjs`，确认首页、中英文欢迎页、开发者入口和 JS/CSS 产物齐全；发布后重新读取远端 `gh-pages/deployment.json`，核对其中的 `commit` 是否等于本次源码 SHA。正式站是否更新还需核对该站的 `/deployment.json` 和实际页面，不能仅凭 `main` 的 Cloudflare 检查成功作结论。
+## Cloudflare Pages 发布配置
 
-若运行停在等待 runner，且 `Runner ready` 尚未执行，属于执行器尚未开始运行，不能通过修改文档内容或输出目录解决。保留该失败运行及错误信息，先检查 GitHub 托管执行器可用性，再重新运行原流程。
+发布链路为 `main → Cloudflare Pages 构建与校验 → out/ → Cloudflare Pages 托管`。不再依赖 `gh-pages` 产物分支，也不需要 GitHub Pages 或 GitHub 托管 runner。
 
-产物校验的回归测试：`node --test scripts/verify-export.test.mjs`。
+在现有 Cloudflare Pages 项目 `docs` 的设置中配置以下内容。提交仓库文件不会自动更改后台的构建命令或生产分支，迁移时必须同步设置：
+
+| 设置 | 值 |
+| --- | --- |
+| Git 仓库 | `three-dog-cloud/docs` |
+| Production branch | `main` |
+| Framework preset | `Next.js (Static HTML Export)` |
+| Root directory | 留空，使用仓库根目录 |
+| Build command | `pnpm install --frozen-lockfile && pnpm run ci` |
+| Build output directory | `out` |
+| Build system | v3 |
+
+Production 和 Preview 环境均设置：
+
+| 环境变量 | 值 |
+| --- | --- |
+| `NODE_VERSION` | `22.22.3` |
+| `PNPM_VERSION` | `11.7.0` |
+| `SKIP_DEPENDENCY_INSTALL` | `1` |
+
+关闭自动依赖安装后，由上面的构建命令显式使用锁文件安装，避免重复安装或误用 npm。不要手动设置 Cloudflare 自动注入的 `CF_PAGES_COMMIT_SHA`。启用 `main` 的自动生产部署；其他源码分支可启用预览部署，并排除旧产物分支 `gh-pages`。
+
+首次切换先验证新的 Pages 部署地址，再确认 `docs.tdcloud.cc` 已绑定到这个 Cloudflare Pages 项目且 DNS 指向正确。如果 GitHub Pages 仍绑定同一域名，应在 Cloudflare 域名验证完成后清理旧绑定，避免误把旧站仍可访问当作新版本已上线。
+
+## 上线验收
+
+使用本次源码的完整 SHA 验证 Cloudflare 的部署地址和正式域名：
+
+```bash
+pnpm verify:deployment https://<deployment>.docs-6bp.pages.dev <source-commit-sha>
+pnpm verify:deployment https://docs.tdcloud.cc <source-commit-sha>
+```
+
+脚本核对 `/deployment.json` 的源码版本、中英文主要页面，以及页面引用的 JS/CSS 资源。Cloudflare 检查显示成功只代表它完成了配置中的部署操作；预览地址 404 或版本不一致都不能算发布完成。
+
+回归测试：`pnpm test`。仅需本地开发构建时仍可使用 `pnpm build`；正式部署必须使用包含校验和版本标记的 `pnpm run ci`。
+
+GitHub 中的 `Validate docs (manual)` 仅用于需要时手动复查构建。其 runner 不可用不会阻塞 Cloudflare 的生产与预览部署。
+
+参考：[Cloudflare 静态 Next.js 部署](https://developers.cloudflare.com/pages/framework-guides/nextjs/deploy-a-static-nextjs-site/)、[构建配置](https://developers.cloudflare.com/pages/configuration/build-configuration/)、[构建环境与版本](https://developers.cloudflare.com/pages/configuration/build-image/)。
 
 中英文内容分别位于 `src/content/zh/` 与 `src/content/en/`。
 

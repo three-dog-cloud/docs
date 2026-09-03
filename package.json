@@ -10,6 +10,9 @@
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "build": "next build",
+    "ci": "next typegen && tsc --noEmit && pnpm test && next build && node scripts/finalize-export.mjs",
+    "test": "node --test scripts/verify-export.test.mjs scripts/finalize-export.test.mjs scripts/verify-deployment.test.mjs",
+    "verify:deployment": "node scripts/verify-deployment.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },
