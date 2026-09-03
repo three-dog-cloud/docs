@@ -1,0 +1,56 @@
+# 开发者接入起步
+
+先选择需要的能力，再申请客户端。只接入平台登录时，不需要开通商户；代用户下单和支付时，需要绑定自己已启用的商户。
+
+## 1. 选择接入方式
+
+| 目标 | 客户端与流程 | Scope |
+| --- | --- | --- |
+| 用户登录 | 公共或机密客户端，授权码 + PKCE | `openid profile` |
+| 服务端同步店铺与商品 | 机密客户端，Client Credentials | `merchant.profile.read products.read` |
+| 用户在你的应用购买商品 | 用户授权，绑定商户 | 按需申请商品、订单和支付 Scope |
+
+浏览器、桌面和移动应用无法隐藏固定 Secret，应选择公共客户端；具备安全后端的应用可选择机密客户端。详见[客户端与密钥](/zh/developer/oauth-client/)。
+
+## 2. 申请并准备环境
+
+获得开发者邀请后，在申请页填写应用名称、介绍、主页、客户端类型、回调地址和 Scope，等待审核。通过后到开发者中心核对配置；机密客户端按页面提供的轮换入口生成并保存 Secret。
+
+准备以下值：
+
+| 名称 | 用途 |
+| --- | --- |
+| `PLATFORM_URL` | 用户访问的平台网站地址，用于打开授权页面 |
+| `API_BASE_URL` | 后端 API 的部署根地址，用于令牌和 OpenAPI 请求 |
+| `CLIENT_ID` | 已审核客户端编号 |
+| `REDIRECT_URI` | 已登记且由你控制的回调地址 |
+| `CLIENT_SECRET` | 仅机密客户端，在服务端保存 |
+
+本文其他页面的 `{API_BASE_URL}` 等写法是占位符，使用前需要替换。API 地址不是文档站地址；部署可能通过反向代理添加前缀，应向平台确认实际地址，不能默认所有环境都有 `/api`。
+
+## 3. 先跑通身份授权
+
+按[授权码与 PKCE](/zh/developer/authorization-code/)完成授权。Node.js 服务端可用以下方式生成参数：
+
+~~~js
+import { randomBytes, createHash } from 'node:crypto'
+
+const codeVerifier = randomBytes(32).toString('base64url')
+const codeChallenge = createHash('sha256')
+  .update(codeVerifier)
+  .digest('base64url')
+const state = randomBytes(32).toString('base64url')
+const nonce = randomBytes(32).toString('base64url')
+~~~
+
+每次授权重新生成，并把 verifier、state、nonce 绑定到发起授权的会话。示例只生成参数，不替代回调处理和会话存储。PKCE 的标准流程见 [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)。
+
+换取令牌后先调用 `GET /oauth/userinfo`，以返回的 `sub` 关联本地账户。不要把“能够解码 JWT”当作验证成功，也不要把 ID Token 作为 OpenAPI 的 Bearer Token。
+
+## 4. 再接商品和订单
+
+登录验证通过后，再接入[商品、订单与支付流程](/zh/developer/commerce/)。金额先按[数据格式](/zh/developer/data-formats/)处理，错误按[接入排错](/zh/developer/troubleshooting/)分类。
+
+## 上线前检查
+
+使用自己的测试账户验证同意与拒绝授权、错误 state、过期授权码、刷新令牌轮换，以及最小 Scope。涉及交易时还需核对真实订单、付款、交付和商户入账，不能只以令牌接口返回成功作为交易上线依据。

@@ -1,0 +1,40 @@
+# Payment and settlement
+
+The buyer's charge, merchant revenue and wallet balance are separate values. Use merchant orders and wallet transactions to confirm settlement.
+
+## Platform channels are currently used
+
+Products can use enabled platform TDC or online-payment channels, subject to their payment settings and the available quote.
+
+Merchant-owned payment channels are not open. You cannot currently add, modify or enable your own Stripe or similar receiving configuration. A menu entry or API name does not establish availability.
+
+## Buyer charge versus merchant revenue
+
+The product net amount is the product total minus discounts. Platform channels settle merchant revenue in TDC based on this net amount. The buyer's payment fee is not merchant revenue.
+
+For example, an order paid in TDC:
+
+| Item | Example amount |
+| --- | --- |
+| Product total | 10 TDC |
+| Discount | 1 TDC |
+| Product net amount | 9 TDC |
+| Buyer fee | 0.27 TDC |
+| Buyer payment | 9.27 TDC |
+| Merchant product revenue | 9 TDC |
+
+This example explains the fields; it does not establish a fixed fee rate. Use the actual order quote.
+
+For an online channel in another currency, the buyer pays in that currency and merchant revenue is settled in TDC using the order's saved exchange-rate snapshot. A payment of 10 USD does not mean a credit of 10 TDC. Do not recalculate historical revenue using today's rate.
+
+## Confirming a credit
+
+Check the merchant order's revenue information, then match its order number with the wallet transaction and balance change. A merchant does not need to top up just to create a wallet before the first sale.
+
+If payment is confirmed but no revenue record appears, report the order number to the platform. Do not change sales counters, repeat payment or manually increase balances to compensate.
+
+## Settlement and delivery
+
+Delivery can remain pending after payment confirmation and revenue settlement. A fulfillment retry does not mean the buyer needs to pay again. See [Merchant orders and reconciliation](/en/merchant/orders/).
+
+There is no withdrawal or automatic-refund procedure in this guide because the public interface does not yet offer those complete flows. Ask the platform how such requests are handled.

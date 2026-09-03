@@ -1,12 +1,14 @@
 # OpenAPI 速查
 
-OpenAPI 使用 OAuth Access Token。除令牌端点外，请在请求头中发送：
+OpenAPI 与用户信息接口使用 OAuth Access Token，请在请求头中发送：
 
 ```http filename="请求头"
 Authorization: Bearer {ACCESS_TOKEN}
 ```
 
-本文只列出当前已经接入路由的能力。请求与响应字段可能继续扩充，接入方应忽略未知字段。
+浏览器授权应打开平台网站的授权页面，由平台处理用户登录；令牌端点按所选授权类型提交参数，不使用上面的 Bearer 请求头。API 地址与占位符见[接入起步](/zh/developer/quickstart/)。
+
+本文只列出当前已经接入路由的能力。请求与响应字段可能继续扩充，接入方应忽略未知字段。完整交易示例见[商品、订单与支付接入](/zh/developer/commerce/)。
 
 ## OAuth 与身份
 
@@ -59,7 +61,7 @@ Authorization: Bearer {ACCESS_TOKEN}
 
 - 不要通过前端代码暴露机密客户端的 Secret。
 - 只请求业务实际需要的最小 Scope。
-- 金额字段按整数和对应小数位处理。
+- 金额字段统一按八位定点整数处理，币种小数位不改变缩放比例，详见[金额与数据格式](/zh/developer/data-formats/)。
 - 遇到 `401 invalid_token` 应重新授权或刷新令牌；遇到 `403 insufficient_scope` 不应盲目重试。
 - 商户停用会返回 `merchant_inactive`，需先恢复商户状态。
 - 订单创建和支付操作应由接入方设置幂等保护，避免用户重复点击造成重复请求。

@@ -87,7 +87,7 @@ export default async function LocaleLayout({
       }
       pageMap={await getPageMap(`/${lang}`)}
       search={null}
-      docsRepositoryBase="https://github.com/three-dog-cloud/docs"
+      docsRepositoryBase="https://github.com/three-dog-cloud/docs/tree/main"
       editLink={isZh ? "在 GitHub 上编辑此页" : "Edit this page on GitHub"}
       feedback={{
         content: isZh ? "有疑问？提交反馈" : "Question? Give us feedback",

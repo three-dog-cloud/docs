@@ -1,0 +1,81 @@
+# Product, order and payment integration
+
+This guide connects product discovery, user ordering, payment initiation and status checks. Requests use an approved client's OAuth Access Token. Transactions require real user authorization.
+
+## Prerequisites
+
+The client must be bound to your own active merchant with the required `products.read`, `orders.create`, `orders.read`, `payments.create` and `payments.read` scopes. Eligible Client Credentials tokens can read products but cannot create or pay user orders.
+
+Replace example identifiers and tokens. `payment_no` is an actual channel identifier, not a display name such as Stripe or TDC.
+
+## 1. Read products
+
+~~~bash
+curl "{API_BASE_URL}/openapi/v1/products?page=1&limit=20" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+~~~
+
+The response has the form `{"list": [], "total": 0, "page": 1, "limit": 20}`. Products include `gd_no`, `gd_name`, prices, stock, quantity limits and optional `other_ipu_cnf`.
+
+An additional-field entry such as `service_account=Service account=true` requires the key `service_account`. Do not use the display label as the JSON key.
+
+Current OpenAPI routes do not include independent payment-channel discovery or checkout quotes. Confirm available channel identifiers and payment presentation with the platform first. Internal account endpoints that require platform sign-in are not OAuth OpenAPI endpoints.
+
+## 2. Create a user order
+
+~~~bash
+curl -X POST "{API_BASE_URL}/openapi/v1/orders" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"gd_no":"PRODUCT_NO","quantity":1,"payment_no":"PAYMENT_CHANNEL_NO","other_ipu":{"service_account":"example-account"}}'
+~~~
+
+Use the product's configured keys in `other_ipu`, or an empty object when none are needed. Quantity must be a positive integer within stock and per-order limits. The client does not supply an arbitrary total for the platform to charge.
+
+Success returns HTTP 201:
+
+~~~json
+{"order_no":"ORDER_NO"}
+~~~
+
+Persist the order number immediately, then read `GET /openapi/v1/orders/{order_no}` to display its saved amounts. Order creation has no general request-idempotency-key contract. Repeated POST requests can create different orders. A timeout does not prove failure; retain operation state in your system and prevent duplicate submissions.
+
+## 3. Initiate payment
+
+~~~bash
+curl -X POST "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"payment_no":"PAYMENT_CHANNEL_NO"}'
+~~~
+
+Use the channel bound to the order while it remains available. This request initiates payment. A TDC channel may debit the wallet during the request, so it must not be used as a read-only price preview.
+
+Success includes:
+
+~~~json
+{
+  "trade_no": "PAYMENT_SESSION_ID",
+  "redirect": "https://payment.example/checkout",
+  "expire_time": 1800000000
+}
+~~~
+
+The URL and time above only illustrate the fields. Use the actual returned payment address. Resolve relative addresses against the service address confirmed by the platform, not automatically against your application's domain.
+
+## 4. Check payment and delivery
+
+~~~bash
+curl "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+~~~
+
+Responses `{"status":0}`, `{"status":1}` and `{"status":2}` mean awaiting payment, paid and cancelled respectively. Poll with an interval and overall timeout, stopping on a terminal payment result.
+
+After payment, read order details to determine whether delivery is still processing. Browser redirect parameters alone do not prove payment. See [data formats](/en/developer/data-formats/) for status values.
+
+## Access boundaries
+
+Order access checks both the authorized user and the bound merchant. These endpoints do not provide access to every customer's orders. Current checks do not separately isolate orders by the client that created them.
+
+Public OpenAPI currently has no order-cancellation, refund, withdrawal or general order-list endpoint. Confirm actual platform support instead of guessing an endpoint.

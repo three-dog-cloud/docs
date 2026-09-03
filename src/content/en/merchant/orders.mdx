@@ -1,0 +1,49 @@
+# Merchant orders and reconciliation
+
+Merchant Orders lists sales for the current merchant. My Orders lists purchases made by the signed-in account. If one account has both roles, check which view you are using.
+
+## What to inspect for each order
+
+| Information | Purpose |
+| --- | --- |
+| Order number, product and quantity | Identify the sale and delivery |
+| Buyer payment and currency | Confirm the buyer's charge, not merchant revenue |
+| Status and payment time | Distinguish unpaid, delivery pending, completed and cancelled |
+| Merchant revenue and settlement status | Confirm whether the sale generated wallet revenue |
+| Revenue transaction number | Match the wallet entry and balance change |
+
+Order counts, sales counters and a Completed label alone do not prove settlement. See [Payment and settlement](/en/merchant/payments/) for the amount relationships.
+
+## Reconciliation sequence
+
+1. Locate the merchant order by order number.
+2. Check payment status and time.
+3. Compare product net value with merchant revenue, accounting for discounts, fees and currencies.
+4. Find the corresponding revenue transaction and its before/after balances.
+5. Independently confirm delivery and revenue posting.
+
+An order can be paid while delivery is pending. Check fulfillment and financial posting separately.
+
+## When a delivery callback is configured
+
+Post-payment business callbacks may arrive more than once. Deduplicate by order number so retries do not activate a service or deliver a product twice. The platform sends a stable header:
+
+~~~http
+Idempotency-Key: order-fulfillment:ORDER_NO
+~~~
+
+The current body contains `order_no` and `callback_no`. This key identifies duplicate delivery; it is not a signature or authentication credential. Establish a trusted source separately instead of delivering merely because this header is present.
+
+Return HTTP 200 to acknowledge success; the current platform does not accept every 2xx status as success. The request timeout is approximately three seconds. For longer work, durably record the task and track its subsequent execution in your service.
+
+Persist the business result before acknowledging success. An external side effect may already have happened before a network failure, so check your own processing record on a repeated request.
+
+## Handling exceptions
+
+- Awaiting payment: wait for payment confirmation before delivering.
+- Paid, delivery pending: check receiver availability and whether the order was already processed, then observe background retries.
+- Cancelled: stop directing the buyer to the old payment link; the record helps trace stock release.
+- Paid without revenue: provide the order number and missing revenue details to the platform.
+- Delivery mismatch: record what was delivered and when, avoiding duplication between manual handling and automatic retries.
+
+Use the [support checklist](/en/getting-started/notifications/) when reporting issues. Do not send callback credentials or customer passwords.

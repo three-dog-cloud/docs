@@ -20,6 +20,8 @@ export default {
   },
   'getting-started': '🚀 开始使用',
   currency: '💱 TDC 与支付',
+  shopping: '🛒 购物与订单',
+  merchant: '🏪 商户指南',
   developer: '🔑 开发者平台',
   faqs: '🧐 常见问题',
   '---': { type: 'separator' },

@@ -1,0 +1,49 @@
+# Product configuration and publishing
+
+Manage your products under Merchant Center → Products. The platform assigns ownership to the current merchant; submitting another user's identifier cannot transfer ownership.
+
+## Prepare the product content
+
+Provide a name, description, image, search keywords and purchase instructions. Explain what the buyer receives, how delivery works and what information is needed.
+
+Distinguish these pricing settings:
+
+| Setting | Purpose |
+| --- | --- |
+| Product currency | Currency used to price the product |
+| Actual price | Normal unit price |
+| Reference price | Crossed-out display price |
+| Wholesale prices | Quantity-based unit-price tiers |
+
+Prices must be positive. Enter normal display amounts such as 1.25 in the interface. For API integer values, see [Amounts and data formats](/en/developer/data-formats/).
+
+## Stock and quantity limits
+
+- Stock determines available quantity; unpaid orders can also reserve it.
+- The quantity limit applies to a single order. Zero means no limit; it is not a lifetime limit per user.
+- Sorting weight affects list order.
+- The publish switch determines whether the product is enabled. Check its saved state.
+
+Do not calculate revenue from the sales counter alone. Reconcile orders with wallet transactions.
+
+## Additional order fields
+
+For delivery information, configure a field identifier, display label and required flag. For example, use identifier `service_account` with label “Service account”.
+
+Programs submit the identifier; buyers see the label. Keep identifiers stable so existing integrations continue to send the right fields. Collect only information needed for delivery, not buyers' platform passwords.
+
+## Payment methods
+
+Automatic matching uses compatible channels. An allowlist must include at least one valid platform order-payment channel. Disabled channels, incompatible currencies or missing exchange rates can prevent a buyer from obtaining a quote.
+
+Merchant-owned Stripe configuration cannot currently bypass these restrictions. See [Payment and settlement](/en/merchant/payments/).
+
+## Sales scope and business callbacks
+
+The interface offers marketplace, merchant store, both and private scopes. Current public product queries do not use this field as a complete access-control boundary. Do not treat Private as a confidentiality guarantee. Disable the product to stop public sales and check the public result.
+
+Pre-order validation and post-payment callback addresses connect your own service. Configure them only when you have a receiver and have checked the address, failure handling and duplicate notifications. Ordinary products do not need a placeholder callback URL.
+
+## Before publishing
+
+Save and reopen the product to check its price, stock, required fields, channels and published state. Then inspect its presentation and quote as a buyer. An accessible product page establishes browsing availability, not successful payment and delivery.

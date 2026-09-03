@@ -1,0 +1,64 @@
+# Amounts and data formats
+
+Do not infer units from field names or example values alone. Amounts, payment-query statuses and order statuses have separate contracts.
+
+## Amounts use a fixed eight-decimal scale
+
+Current product and order API amount fields use a `10^-8` scale:
+
+~~~text
+display amount = API integer / 100000000
+~~~
+
+This differs from a currency's display precision. `currency_decimals` and `payment_currency_decimals` describe currency precision; they do not change the integer scale.
+
+| Amount | API integer |
+| --- | --- |
+| 1 TDC | 100000000 |
+| 1.25 USD | 125000000 |
+| 0.01 USD | 1000000 |
+
+Do not divide `125000000` by 100 merely because USD normally displays two decimal places.
+
+## Product versus payment amounts
+
+| Fields | Meaning |
+| --- | --- |
+| `currency`, `currency_decimals` | Product currency and display precision |
+| `total_amount`, `discount_amount` | Product total and discount |
+| `payment_currency`, `payment_currency_decimals` | Payment currency and precision |
+| `payment_subtotal`, `payment_handling_amount`, `payment_pay_amount` | Subtotal, fee and final charge in payment currency |
+
+Use payment currency with its corresponding amounts in payment confirmation. Do not attach the wrong currency label, add amounts across currencies or reprice historical orders using live rates.
+
+## JavaScript precision
+
+Amounts are JSON integers. Beyond JavaScript's safe integer range, ordinary `JSON.parse` can already lose precision. Converting that rounded value to BigInt cannot recover it.
+
+Use JSON parsing that preserves large integers and perform money arithmetic with integers or a decimal fixed-point library. Use ordinary `Number` only for values confirmed to be within its safe range. See [MDN on safe integers](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER).
+
+## Keep the two status contracts separate
+
+| Order detail `status` | Meaning |
+| --- | --- |
+| 0 | Awaiting payment |
+| 1 | Processing, payment confirmed |
+| 2 | Cancelled |
+| 3 | Completed |
+
+The `status` from `GET /openapi/v1/orders/{order_no}/payment` instead means:
+
+| Payment query `status` | Meaning |
+| --- | --- |
+| 0 | Awaiting payment |
+| 1 | Paid, including processing and completed orders |
+| 2 | Cancelled |
+
+When the payment query returns 1, read order details to determine whether fulfillment is complete.
+
+## Identifiers, pagination and time
+
+- Keep product, order and client identifiers as strings.
+- Product lists return `list`, `total`, `page` and `limit`. Defaults are page 1 and limit 20. Valid limits are 1–100; out-of-range limits currently fall back to 20.
+- Payment creation returns `expire_time` as a Unix timestamp in seconds. OAuth `expires_in` is a lifetime in seconds from issuance. They are not interchangeable.
+- Order date fields can be empty. Do not display empty dates as 1970 or assume an unspecified time zone is UTC.

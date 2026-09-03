@@ -1,0 +1,81 @@
+# 商品、订单与支付接入
+
+本页按“读取商品 → 用户下单 → 发起支付 → 查询付款与交付”的顺序串起接口。所有请求使用已审核客户端的 OAuth Access Token；交易需要真实用户授权。
+
+## 接入前确认
+
+客户端已绑定自己启用中的商户，并取得所需的 `products.read`、`orders.create`、`orders.read`、`payments.create`、`payments.read`。只获取商品时可使用符合条件的 Client Credentials，订单与支付则不可以。
+
+示例中的编号和 Token 需要替换；`payment_no` 是实际支付渠道编号，不是“Stripe”或“TDC”这样的显示名称。
+
+## 1. 读取商品
+
+~~~bash
+curl "{API_BASE_URL}/openapi/v1/products?page=1&limit=20" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+~~~
+
+响应结构为 `{"list": [], "total": 0, "page": 1, "limit": 20}`。商品信息包括 `gd_no`、`gd_name`、价格、库存、数量限制和可能存在的 `other_ipu_cnf`。
+
+附加字段配置中的 `service_account=服务账号=true` 表示提交键名为 `service_account` 且必填；不能用展示名称作为 JSON 键。
+
+当前 OpenAPI 未提供独立的支付渠道发现与结算报价路由。接入前需与平台确认商品可用的渠道编号和付款展示方式；不要把登录态的内部账户接口当作 OAuth OpenAPI 使用。
+
+## 2. 创建用户订单
+
+~~~bash
+curl -X POST "{API_BASE_URL}/openapi/v1/orders" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"gd_no":"PRODUCT_NO","quantity":1,"payment_no":"PAYMENT_CHANNEL_NO","other_ipu":{"service_account":"example-account"}}'
+~~~
+
+`other_ipu` 的键以商品配置为准；没有附加输入时可提交空对象。数量必须为正整数，还受库存和单次限购约束。客户端不提交一个自定总价让平台照单扣款。
+
+成功响应为 HTTP 201：
+
+~~~json
+{"order_no":"ORDER_NO"}
+~~~
+
+立即保存订单号，再读取 `GET /openapi/v1/orders/{order_no}` 展示保存的订单金额。创建订单未提供通用的请求幂等键契约；重复 POST 可能创建不同订单。网络超时不能直接等同于创建失败，应在自己的业务系统保留操作状态并防止重复提交。
+
+## 3. 发起支付
+
+~~~bash
+curl -X POST "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"payment_no":"PAYMENT_CHANNEL_NO"}'
+~~~
+
+使用订单绑定且仍可用的渠道。此请求会实际发起支付；TDC 渠道可能在请求过程中扣款，不能将它用作无副作用的价格预览。
+
+成功响应包含：
+
+~~~json
+{
+  "trade_no": "PAYMENT_SESSION_ID",
+  "redirect": "https://payment.example/checkout",
+  "expire_time": 1800000000
+}
+~~~
+
+这里的链接与时间仅示意字段。按实际返回的支付地址处理；相对地址需要按平台确认的服务地址解析，不能直接拼到你自己的应用域名。
+
+## 4. 查询付款与交付
+
+~~~bash
+curl "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+~~~
+
+返回 `{"status":0}`、`{"status":1}` 或 `{"status":2}`，分别表示待支付、已付款和已取消。使用有间隔且有超时上限的轮询；终态后停止。
+
+已付款后再读取订单详情判断是否仍在交付处理中。不要仅靠浏览器回跳参数确认付款。状态数值详见[金额与数据格式](/zh/developer/data-formats/)。
+
+## 访问边界
+
+订单读取和支付按授权用户与绑定商户共同校验，不是该商户全部客户的订单管理接口。当前校验也不以“是否由同一个客户端创建”作为独立隔离条件。
+
+公开 OpenAPI 目前没有订单取消、退款、提现或通用订单列表接口。需要这些能力时先确认平台实际支持方式，不要自行拼接一个猜测的端点。

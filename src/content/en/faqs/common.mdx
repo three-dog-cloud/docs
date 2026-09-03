@@ -1,5 +1,29 @@
 # Common Questions
 
+## Why is a product order still unpaid after a successful top-up?
+
+A top-up increases your TDC balance; a product purchase is a separate operation. Find the unpaid order under My Orders, review its amount and continue payment. See [Your first visit](/en/getting-started/quickstart/).
+
+## I was charged but the order is still processing. Should I pay again?
+
+No. Processing means payment was confirmed and delivery is pending. Check the order and payment time; report the order number if it remains unchanged. See [Orders and delivery](/en/shopping/orders/).
+
+## Is cancelling an order the same as a refund?
+
+No. Cancellation closes an unpaid order. There is no complete user self-service refund flow at present. Contact the merchant or platform for after-sales help with a paid order.
+
+## Why can a merchant not add their own Stripe account?
+
+Merchant-owned payment channels are not open. Products currently use supported platform channels and settle net product revenue into the merchant's TDC wallet. Buyer fees are not merchant revenue. See [Payment and settlement](/en/merchant/payments/).
+
+## Why does My Applications not list OAuth consents to revoke?
+
+It currently manages external account connections such as GitHub, not OAuth application consent. Disconnecting an external account is not consent revocation. See [Connected accounts](/en/getting-started/connections/).
+
+## Should an API amount be divided by 100 or 100 million?
+
+Current product and order amounts use a scale of 100 million. Currency decimal precision controls display, not scaling. See [Amounts and data formats](/en/developer/data-formats/) for examples and payment status definitions.
+
 ## Why can I not see Merchant Center or Developer Center?
 
 Both are invitation-only. The application entry appears in the profile menu after an invitation; the corresponding center appears only after approval. Sign in again after a permission change to refresh routes.

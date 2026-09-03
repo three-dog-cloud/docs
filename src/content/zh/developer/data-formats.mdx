@@ -1,0 +1,64 @@
+# 金额与数据格式
+
+接口字段不能只凭名称或示例数字猜单位。特别是金额、支付状态和订单状态，应按各自协议解释。
+
+## 金额统一采用八位定点整数
+
+当前商品与订单 API 的金额字段统一采用 `10^-8` 刻度，即：
+
+~~~text
+显示金额 = 接口整数 / 100000000
+~~~
+
+这与币种可显示的小数位是两件事。`currency_decimals` 和 `payment_currency_decimals` 用于币种精度，不改变金额整数的缩放比例。
+
+| 金额 | 接口整数 |
+| --- | --- |
+| 1 TDC | 100000000 |
+| 1.25 USD | 125000000 |
+| 0.01 USD | 1000000 |
+
+不能因为 USD 通常显示两位小数，就把 `125000000` 除以 100。
+
+## 商品金额与支付金额
+
+| 字段组 | 说明 |
+| --- | --- |
+| `currency`、`currency_decimals` | 商品计价币种及显示精度 |
+| `total_amount`、`discount_amount` | 商品总额与优惠 |
+| `payment_currency`、`payment_currency_decimals` | 支付使用的币种及精度 |
+| `payment_subtotal`、`payment_handling_amount`、`payment_pay_amount` | 支付币种下的小计、手续费与实际支付 |
+
+展示付款确认时优先使用支付币种及对应金额，避免给同一个数字贴错币种。不要跨币种相加，也不要用实时汇率改写已经生成的历史订单金额。
+
+## JavaScript 精度
+
+接口中的金额是 JSON 整数。超过 JavaScript 安全整数范围时，普通 `JSON.parse` 可能已经丢失精度，此后再转为 BigInt 也无法恢复。
+
+接入时使用保留大整数的 JSON 解析方案，金额运算使用整数或十进制定点库。普通 `Number` 仅能用于已经确认在安全范围内的值。相关限制见 [MDN 安全整数说明](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER)。
+
+## 两种状态不要混用
+
+| 订单详情 `status` | 含义 |
+| --- | --- |
+| 0 | 待支付 |
+| 1 | 处理中，已付款 |
+| 2 | 已取消 |
+| 3 | 已完成 |
+
+而 `GET /openapi/v1/orders/{order_no}/payment` 的 `status` 是支付查询结果：
+
+| 支付查询 `status` | 含义 |
+| --- | --- |
+| 0 | 待支付 |
+| 1 | 已付款，包括订单处理中或已完成 |
+| 2 | 已取消 |
+
+支付查询返回 1 时，若要判断交付是否完成，还要读取订单详情。
+
+## 编号、分页与时间
+
+- 商品号、订单号、客户端号均按字符串保存，不转成数字。
+- 商品列表使用 `list`、`total`、`page`、`limit`；默认页码 1、每页 20，合法 limit 为 1–100，超出范围当前回退到 20。
+- 支付创建响应的 `expire_time` 是 Unix 秒时间戳；OAuth 的 `expires_in` 是从签发开始计算的有效秒数，两者不能互换。
+- 订单日期字段可能为空；展示空值时不要自动变成 1970 年，也不要擅自附加 UTC 时区。

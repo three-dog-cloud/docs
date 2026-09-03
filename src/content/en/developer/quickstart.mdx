@@ -1,0 +1,56 @@
+# Developer quickstart
+
+Choose the capabilities you need before applying for a client. Platform sign-in alone does not require a merchant. Creating and paying orders for users requires a client bound to your own active merchant.
+
+## 1. Choose a flow
+
+| Goal | Client and flow | Scopes |
+| --- | --- | --- |
+| User sign-in | Public or confidential client, Authorization Code + PKCE | `openid profile` |
+| Server-side store and product synchronization | Confidential client, Client Credentials | `merchant.profile.read products.read` |
+| Users purchase through your application | User authorization with a merchant binding | Product, order and payment scopes as needed |
+
+Browser, desktop and mobile applications cannot hide a fixed Secret and should use a public client. Applications with a secure backend can use a confidential client. See [Clients and secrets](/en/developer/oauth-client/).
+
+## 2. Apply and prepare configuration
+
+After receiving a developer invitation, submit your application name, description, homepage, client type, redirect URIs and scopes. Once approved, check the Developer Center. For a confidential client, use the available rotation action to generate and save a Secret.
+
+Prepare:
+
+| Name | Purpose |
+| --- | --- |
+| `PLATFORM_URL` | Platform website visited by users, including the authorization page |
+| `API_BASE_URL` | Deployed backend API root for token and OpenAPI requests |
+| `CLIENT_ID` | Approved client identifier |
+| `REDIRECT_URI` | Registered callback address you control |
+| `CLIENT_SECRET` | Confidential clients only; store on the server |
+
+Values such as `{API_BASE_URL}` elsewhere in these docs are placeholders to replace. The API is not the documentation site. A reverse proxy may add a path prefix; confirm the deployment address instead of assuming every environment uses `/api`.
+
+## 3. Establish identity authorization first
+
+Follow [Authorization Code and PKCE](/en/developer/authorization-code/). A Node.js backend can generate the parameters as follows:
+
+~~~js
+import { randomBytes, createHash } from 'node:crypto'
+
+const codeVerifier = randomBytes(32).toString('base64url')
+const codeChallenge = createHash('sha256')
+  .update(codeVerifier)
+  .digest('base64url')
+const state = randomBytes(32).toString('base64url')
+const nonce = randomBytes(32).toString('base64url')
+~~~
+
+Generate fresh values for each attempt and bind the verifier, state and nonce to its initiating session. This example generates parameters only; it does not implement session storage or callback handling. The PKCE standard is [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636).
+
+After obtaining tokens, call `GET /oauth/userinfo` and use `sub` to link the local account. Decoding a JWT is not verification. Do not use an ID Token as the OpenAPI Bearer Token.
+
+## 4. Add products and orders
+
+After verifying sign-in, implement the [product, order and payment flow](/en/developer/commerce/). Follow [data formats](/en/developer/data-formats/) for amounts and [troubleshooting](/en/developer/troubleshooting/) for failures.
+
+## Before release
+
+Use your own test accounts to verify consent and denial, invalid state, expired authorization codes, refresh-token rotation and minimum scopes. Commerce also requires checking actual orders, payment, delivery and merchant revenue; a successful token response is not commerce acceptance.

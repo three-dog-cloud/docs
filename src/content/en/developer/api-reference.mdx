@@ -1,12 +1,14 @@
 # OpenAPI Quick Reference
 
-OpenAPI uses OAuth access tokens. Except for the token endpoint, send:
+OpenAPI and the user-info endpoint use OAuth Access Tokens. Send:
 
 ```http filename="Request header"
 Authorization: Bearer {ACCESS_TOKEN}
 ```
 
-Only currently routed capabilities are listed here. Responses may gain fields over time, so clients should ignore unknown fields.
+For browser authorization, open the platform website's authorization page and let the platform handle sign-in. The token endpoint receives parameters for the chosen grant instead of the Bearer header above. See the [quickstart](/en/developer/quickstart/) for API addresses and placeholders.
+
+Only currently routed capabilities are listed here. Responses may gain fields over time, so clients should ignore unknown fields. For a complete transaction example, see [Products, orders and payments](/en/developer/commerce/).
 
 ## OAuth and identity
 
@@ -59,7 +61,7 @@ A successful response uses HTTP `201`:
 
 - Never expose a confidential client's secret in frontend code.
 - Request only the minimum scopes the application uses.
-- Interpret amount integers using the matching decimal precision.
+- Amounts use a fixed eight-decimal integer scale; currency precision does not change that scale. See [Amounts and data formats](/en/developer/data-formats/).
 - Reauthorize or refresh on `401 invalid_token`; do not blindly retry `403 insufficient_scope`.
 - `merchant_inactive` means the merchant must be re-enabled first.
 - Apply idempotency protection around order and payment actions to prevent duplicate user submissions.

@@ -20,6 +20,8 @@ export default {
   },
   'getting-started': '🚀 Getting Started',
   currency: '💱 TDC and Payments',
+  shopping: '🛒 Shopping and Orders',
+  merchant: '🏪 Merchant Guide',
   developer: '🔑 Developer Platform',
   faqs: '🧐 FAQ',
   '---': { type: 'separator' },

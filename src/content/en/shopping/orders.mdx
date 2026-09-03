@@ -1,0 +1,42 @@
+# Orders, payment and delivery
+
+My Orders tracks product orders for your current account. Top-up Records tracks purchases of TDC. A successful top-up is not confirmation that a product order has been paid.
+
+## Understanding order statuses
+
+| Order status | Meaning | Next action |
+| --- | --- | --- |
+| Awaiting payment | The platform has not confirmed payment | Pay within the validity period or cancel |
+| Processing | Payment is confirmed and delivery is still pending | Wait and refresh the details; do not pay again |
+| Completed | The platform's fulfillment flow is complete | Use the product as instructed; contact the merchant for delivery issues |
+| Cancelled | The order is closed | Stop using its payment link; create a new order if you still want to buy |
+
+Completed is a platform workflow status. Check the actual product, account or service against the merchant's delivery instructions.
+
+## Continuing payment
+
+Open the order, verify its product, amount, currency and channel, and use the available payment action. Existing orders retain their own pricing and payment settings. Refreshing a page does not reprice an order using a new product price.
+
+After returning from online payment, check the latest order status. An expired link, pending confirmation and failed payment are different situations. If your provider has charged you, investigate the original order first.
+
+## Cancellation and expiry
+
+Only unpaid orders can be cancelled. Currently, unpaid product orders are subject to expiry after approximately 35 minutes; background scheduling can affect when the updated status appears. A provider's payment session may expire earlier.
+
+Cancellation releases the stock reserved by the order. Cancelling an unpaid order is not a refund of a paid order. The current user interface does not provide a complete self-service refund flow; contact the merchant or platform support for after-sales assistance.
+
+## Paid but not delivered
+
+1. Check the payment time and status in order details.
+2. For Processing or Paid, delivery pending, allow background processing to continue.
+3. If it remains unchanged, provide the order number, payment time and product details to the merchant or support.
+4. If Completed is shown but the product is unusable, describe the delivery discrepancy rather than paying again.
+
+Pending fulfillment is retried in the background, but this is not a guarantee of delivery within a fixed time.
+
+## Which record to check
+
+- Payment and delivery progress: order details.
+- TDC debit: wallet and transaction history.
+- External payment debit: provider receipt linked to the same order number.
+- Top-up credit: [top-up records and wallet](/en/currency/wallet/).

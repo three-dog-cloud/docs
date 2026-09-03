@@ -1,0 +1,31 @@
+# Connected accounts
+
+The My Applications entry opens the connected-accounts page. It manages links between your platform account and external accounts such as GitHub.
+
+## Connecting GitHub
+
+1. Sign in to the platform account whose orders and wallet you want to keep using.
+2. Open My Applications / Connected Accounts and locate GitHub.
+3. Select Connect and complete authorization on GitHub.
+4. After returning, check the connection status and linked account name.
+
+Use the actual connection status after returning. A success parameter in the browser URL is not sufficient confirmation.
+
+## Disconnecting
+
+Choose Disconnect on the relevant card and confirm, then check that it is shown as disconnected. Before doing so, ensure you still have a usable way to sign in to your platform account.
+
+Other connection types may appear on this page. Interactive Telegram binding is not currently open; seeing its card does not mean binding is available.
+
+## Account connections versus application consent
+
+| Situation | Purpose |
+| --- | --- |
+| Connecting GitHub to the platform | Links an external account to your current platform account |
+| Signing in to another application with the platform | Uses OAuth to grant that application the identity or business permissions you accept |
+
+Disconnecting an external account is not a way to revoke a third-party OAuth application's permissions. The current public user interface does not provide a separate OAuth consent-revocation list. Contact platform support if you need help with unexpected authorization.
+
+## If a connection fails
+
+Check the current platform account, the account signed in on GitHub and whether GitHub integration is enabled. Return to the connections page and refresh the status before starting again. Avoid creating repeated platform accounts to troubleshoot a binding issue.

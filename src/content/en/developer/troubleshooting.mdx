@@ -1,0 +1,48 @@
+# Integration troubleshooting
+
+Locate the failure in the authorization page, token endpoint or business API before deciding whether to reauthorize, change configuration or retry.
+
+## Authorization and tokens
+
+| Error or symptom | Check | Action |
+| --- | --- | --- |
+| Authorization cannot continue | Client status, redirect URI, scopes and PKCE | Compare approved settings with the request |
+| `access_denied` | User declined consent | Return to the application and allow a deliberate retry; avoid redirect loops |
+| `invalid_client` | Client ID, type, Secret or disabled client | Correct configuration and update any rotated Secret |
+| `invalid_grant` | Expired or used code, verifier mismatch, consumed refresh token | Reauthorize or use the new token returned by refresh |
+| `invalid_scope` | Requested scope exceeds approval | Reduce scopes or apply for the required capability |
+| `invalid_request` | Missing parameters, encoding or request format | Check endpoint requirements before resending |
+
+Authorization codes last five minutes and are single-use. Validate `state` before using a callback. Keep the verifier from that authorization attempt; do not generate a new one on return.
+
+Refresh tokens rotate. Serialize refreshes for the same account and client, and atomically store new tokens. Do not reuse the old value concurrently. Use the returned `expires_in` for Access Token lifetime instead of hardcoding a number of hours.
+
+## OpenAPI
+
+| Result | Check and action |
+| --- | --- |
+| HTTP 401 / `invalid_token` | Use an OAuth Access Token; check expiry and account/client status |
+| HTTP 403 / `insufficient_scope` | Check approved and actually granted scopes, and whether a client token was used instead of a user token |
+| `merchant_inactive` | Check whether the bound merchant is active |
+| HTTP 404 | Check route, identifier and user/merchant ownership; it does not establish whether another user's resource exists |
+| HTTP 400 | Check JSON, required fields, quantity and content type |
+| HTTP 422 | The request parses, but stock, quantity, channel or another business condition prevents processing |
+| HTTP 5xx or timeout | Preserve context and check the previous write result before retrying |
+
+Do not blindly replay order-creation or payment requests after a timeout. Reads can use bounded retries with increasing delays; writes need duplicate-submission protection in your application.
+
+## Error envelopes differ
+
+OAuth errors contain `error` and `error_description`. Some business errors also include numeric `code`, `error_details` or `error_uri`. Use HTTP status and field meaning, tolerate unknown fields and avoid branching on one exact localized message.
+
+If an API request returns HTML, check for a documentation-site URL, website authorization URL or incorrect proxy prefix.
+
+## Callbacks and SDK assumptions
+
+Production redirect URIs require HTTPS; localhost and 127.0.0.1 can use HTTP during development. Different ports, paths or trailing slashes can fail exact matching.
+
+Current public routes do not expose standard OIDC Discovery / JWKS endpoints. Supplying only an issuer does not mean a generic OIDC SDK can discover the configuration. Confirm the token-verification mechanism rather than skipping signature verification. Basic identity integration can call `/oauth/userinfo` with an Access Token.
+
+## Reporting an issue
+
+Provide the client ID, time and time zone, method and path, HTTP status, sanitized error response and relevant order number. Do not include Secrets, tokens, authorization codes or verifiers. For general account or payment issues, see [Notifications and support](/en/getting-started/notifications/).
