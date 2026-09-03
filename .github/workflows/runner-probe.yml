@@ -1,0 +1,21 @@
+name: Hosted runner probe
+
+# Isolate runner startup from checkout, dependencies, build and publication.
+on:
+  push:
+    branches: ["main"]
+    paths: [".github/workflows/runner-probe.yml"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  runner-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm runner startup
+        shell: bash
+        run: |
+          echo "Runner ${RUNNER_NAME} (${RUNNER_OS}) started successfully"
+          uname -a
