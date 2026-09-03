@@ -24,6 +24,14 @@ pnpm build
 
 构建结果输出到 `out/`，可直接部署到支持静态文件的网站服务。项目启用了尾斜杠路由，因此 `/zh/welcome/` 对应 `out/zh/welcome/index.html`，不依赖服务器额外配置无扩展名重写。
 
+发布沿用 `main → GitHub Actions → out/ → gh-pages`，不在本次调整中变更 Cloudflare 项目的分支或构建设置。PR 只验证构建，不发布；`main` 推送或在 Actions 的 `Deploy static content` 中选择 `Run workflow`（分支选 `main`）可执行发布。
+
+CI 在发布前运行 `node scripts/verify-export.mjs`，确认首页、中英文欢迎页、开发者入口和 JS/CSS 产物齐全；发布后重新读取远端 `gh-pages/deployment.json`，核对其中的 `commit` 是否等于本次源码 SHA。正式站是否更新还需核对该站的 `/deployment.json` 和实际页面，不能仅凭 `main` 的 Cloudflare 检查成功作结论。
+
+若运行停在等待 runner，且 `Runner ready` 尚未执行，属于执行器尚未开始运行，不能通过修改文档内容或输出目录解决。保留该失败运行及错误信息，先检查 GitHub 托管执行器可用性，再重新运行原流程。
+
+产物校验的回归测试：`node --test scripts/verify-export.test.mjs`。
+
 中英文内容分别位于 `src/content/zh/` 与 `src/content/en/`。
 
 ## 构建取舍

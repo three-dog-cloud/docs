@@ -7,16 +7,21 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   # Single deploy job since we're just deploying
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
     steps:
+      - name: Runner ready
+        run: echo "Runner ${RUNNER_NAME} (${RUNNER_OS}) started for ${GITHUB_SHA}"
+
       - uses: actions/checkout@v4
 
       - name: Setup node
@@ -43,12 +48,44 @@ jobs:
           pnpm exec next typegen
           pnpm typecheck
 
+      - name: Test export verification
+        run: node --test scripts/verify-export.test.mjs
+
       - name: Build static site
         run: pnpm build
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3 # 使用第三方 Action 把构建完成的 Artifact 部署到指定分支
+      - name: Verify static export
+        run: node scripts/verify-export.mjs
+
+      - name: Stamp source version
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const commit = process.env.GITHUB_SHA;
+          if (!/^[0-9a-f]{40}$/.test(commit ?? '')) throw new Error('Invalid source commit');
+          writeFileSync('out/deployment.json', JSON.stringify({ commit }, null, 2) + '\n');
+          NODE
+
+      # Keep publishing static files to the original delivery branch.
+      - name: Publish to gh-pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./out
+
+      - name: Verify published source version
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          git fetch --no-tags origin gh-pages
+          git show FETCH_HEAD:deployment.json | node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const deployed = JSON.parse(readFileSync(0, "utf8"));
+            if (deployed.commit !== process.env.GITHUB_SHA) {
+              throw new Error(`gh-pages contains ${deployed.commit}, expected ${process.env.GITHUB_SHA}`);
+            }
+            console.log(`Verified gh-pages source: ${deployed.commit}`);
+          '
+          echo "Published source: ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
