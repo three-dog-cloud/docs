@@ -22,15 +22,29 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 20.10.0
+          node-version: "22"
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
         name: Install pnpm
         with:
-          version: 9
-          run_install: true
+          # Read the exact pnpm version from package.json#packageManager.
+          run_install: false
 
-      - run: pnpm build
+      - name: Show toolchain versions
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: |
+          pnpm exec next typegen
+          pnpm typecheck
+
+      - name: Build static site
+        run: pnpm build
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3 # 使用第三方 Action 把构建完成的 Artifact 部署到指定分支

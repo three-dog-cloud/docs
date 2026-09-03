@@ -6,6 +6,8 @@
 
 环境要求：Node.js 22 或更高版本、pnpm 11。
 
+GitHub Actions 使用 Node.js 22，pnpm 精确版本自动读取 `package.json` 的 `packageManager` 字段。CI 依次执行 `pnpm install --frozen-lockfile`、`pnpm exec next typegen`、`pnpm typecheck` 和 `pnpm build`；先生成路由类型，确保全新检出时也能完成类型检查。升级 pnpm 时应同步更新 `packageManager` 和锁文件，不需要在工作流中重复指定版本。
+
 ```bash
 pnpm install
 pnpm dev
