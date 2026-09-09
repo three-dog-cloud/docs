@@ -1,6 +1,6 @@
 # Amounts and data formats
 
-Do not infer units from field names or example values alone. Amounts, payment-query statuses and order statuses have separate contracts.
+This page primarily covers `/openapi/v1` products and orders. Account top-ups, payment gateways and administrative APIs have different fields and status contracts.
 
 ## Amounts use a fixed eight-decimal scale
 
@@ -31,6 +31,12 @@ Do not divide `125000000` by 100 merely because USD normally displays two decima
 
 Use payment currency with its corresponding amounts in payment confirmation. Do not attach the wrong currency label, add amounts across currencies or reprice historical orders using live rates.
 
+## Rates and amounts have different scales
+
+Fixed fees and monetary caps use the eight-decimal amount scale. Integer rates such as `handling_fee_percent` use ppm: `10000` means 1% and `40000` means 4%. Exchange-rate multipliers such as `tdc_per_unit` are decimal strings, not nano integers.
+
+A channel percentage fee applies to the amount plus the fixed fee; the cap limits only the percentage portion. For a 10 USD top-up with a 4 USD fixed fee and 4% rate, the percentage portion is 0.56 USD and the total fee is 4.56 USD. A UI input of 4% becomes 40000 in the API. Prefer the server quote over a separately calculated total.
+
 ## JavaScript precision
 
 Amounts are JSON integers. Beyond JavaScript's safe integer range, ordinary `JSON.parse` can already lose precision. Converting that rounded value to BigInt cannot recover it.
@@ -56,9 +62,15 @@ The `status` from `GET /openapi/v1/orders/{order_no}/payment` instead means:
 
 When the payment query returns 1, read order details to determine whether fulfillment is complete.
 
+Account top-up gateway queries use a separate `status` contract: `1000` (UnPaid), `1001` (Paid), `1002` (Complete) and `1003` (Expired), alongside `status_label`. Top-up history uses another field, `pay_status`. Do not map these to the OpenAPI `0/1/2` values above. These account endpoints require a platform session and are not third-party OAuth OpenAPI routes.
+
+## Success and error responses
+
+Successful OpenAPI responses return the resource or list directly, without a common `data` wrapper. OAuth errors use a string `error` and `error_description`. Transaction validation or business errors may instead contain a numeric `code`, textual `error` and optional `error_description`. Check the HTTP status and actual response shape rather than assuming one business error schema for every endpoint.
+
 ## Identifiers, pagination and time
 
 - Keep product, order and client identifiers as strings.
 - Product lists return `list`, `total`, `page` and `limit`. Defaults are page 1 and limit 20. Valid limits are 1–100; out-of-range limits currently fall back to 20.
 - Payment creation returns `expire_time` as a Unix timestamp in seconds. OAuth `expires_in` is a lifetime in seconds from issuance. They are not interchangeable.
-- Order date fields can be empty. Do not display empty dates as 1970 or assume an unspecified time zone is UTC.
+- Order dates are `YYYY-MM-DD HH:mm:ss` strings or `null`, without a time zone. Do not render empty dates as 1970 or assume UTC. The `expire_time` in top-up history is also a date string, unlike the Unix seconds field with the same name in payment creation.
