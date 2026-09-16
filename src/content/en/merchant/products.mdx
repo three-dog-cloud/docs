@@ -19,7 +19,8 @@ Prices must be positive. Enter normal display amounts such as 1.25 in the interf
 
 ## Stock and quantity limits
 
-- Stock determines available quantity; unpaid orders can also reserve it.
+- Ordinary count stock is maintained on the product, local unique codes are managed row by row in the [Inventory Center](/en/merchant/inventory/), and an external API product is fulfilled by its supplier system.
+- Stock determines available quantity; unpaid orders can also reserve it. One local code is one unit, so a multi-unit purchase reserves and delivers the same number of rows.
 - The quantity limit applies to a single order. Zero means no limit; it is not a lifetime limit per user.
 - Sorting weight affects list order.
 - The publish switch determines whether the product is enabled. Check its saved state.
@@ -42,7 +43,7 @@ Merchant-owned Stripe configuration cannot currently bypass these restrictions. 
 
 The interface offers marketplace, merchant store, both and private scopes. Current public product queries do not use this field as a complete access-control boundary. Do not treat Private as a confidentiality guarantee. Disable the product to stop public sales and check the public result.
 
-Pre-order validation and post-payment callback addresses connect your own service. Configure them only when you have a receiver and have checked the address, failure handling and duplicate notifications. Ordinary products do not need a placeholder callback URL.
+Pre-order validation and legacy post-payment callback addresses connect your own service. Configure them only when you have a receiver and have checked the address, failure handling and duplicate notifications. Ordinary products do not need a placeholder callback URL. New products that require explicit third-party delivery confirmation should use the [API fulfillment protocol](/en/developer/fulfillment-api/); a legacy callback's HTTP 200 is not delivery confirmation.
 
 ## Before publishing
 

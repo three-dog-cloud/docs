@@ -1,67 +1,183 @@
-# OpenAPI 速查
+# API 参考
 
-OpenAPI 与用户信息接口使用 OAuth Access Token，请在请求头中发送：
+`{API_BASE_URL}` 使用开发者中心为当前客户端分配的 API Base URL，完整保留其路径前缀。本页业务接口路径追加到该地址；用户信息使用单独分配的 `{USERINFO_ENDPOINT}`。所有接口均使用 OAuth Access Token：
 
-```http filename="请求头"
+```http
 Authorization: Bearer {ACCESS_TOKEN}
 ```
 
-浏览器授权应打开平台网站的授权页面，由平台处理用户登录；令牌端点按所选授权类型提交参数，不使用上面的 Bearer 请求头。API 地址与占位符见[接入起步](/zh/developer/quickstart/)。
+成功响应直接返回 JSON，不包含统一的 `data` 外层。业务写请求使用 `Content-Type: application/json`。客户端权限、用户授权权限和资源归属共同决定访问范围；通用错误见 [错误与排查](/zh/developer/troubleshooting/)。
 
-本文只列出当前已经接入路由的能力。请求与响应字段可能继续扩充，接入方应忽略未知字段。完整交易示例见[商品、订单与支付接入](/zh/developer/commerce/)。
+## 接口索引
 
-## OAuth 与身份
+| 方法与路径 | Scope | 令牌主体 |
+| --- | --- | --- |
+| `GET /oauth/userinfo` | `openid` | 用户 |
+| `GET /openapi/v1/merchant` | `merchant.profile.read` | 用户或客户端 |
+| `GET /openapi/v1/products` | `products.read` | 用户或客户端 |
+| `POST /openapi/v1/orders` | `orders.create` | 用户 |
+| `GET /openapi/v1/orders/{order_no}` | `orders.read` | 用户 |
+| `POST /openapi/v1/orders/{order_no}/payment` | `payments.create` | 用户 |
+| `GET /openapi/v1/orders/{order_no}/payment` | `payments.read` | 用户 |
 
-| 方法 | 路径 | Scope | 说明 |
+令牌交换和用户信息的参数、响应见 [OAuth 授权](/zh/developer/authorization-code/)。网站授权页与 API 域名上的内部授权确认接口属于不同调用边界，见 [端点与调用方](/zh/developer/authorization-code/#端点与调用方)。
+
+## 读取商户
+
+`GET /openapi/v1/merchant`
+
+**权限**：`merchant.profile.read`。客户端须绑定启用中的商户。无请求参数，商户身份由令牌和客户端绑定确定。
+
+**成功响应**：HTTP `200`。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `merchant_no` | string | 商户编号 |
+| `name` | string | 店铺名称 |
+| `logo_url` | string | 店铺标志地址 |
+| `short_description` | string | 简短介绍 |
+| `description` | string | 店铺介绍 |
+| `business_scope` | string | 经营范围 |
+| `website_url` | string | 店铺网站 |
+| `contact` | string | 对外联系信息 |
+
+## 查询商品
+
+`GET /openapi/v1/products`
+
+**权限**：`products.read`。仅返回绑定商户的已启用商品。
+
+**Query 参数**：
+
+| 参数 | 类型 | 必填 | 默认值与约束 |
 | --- | --- | --- | --- |
-| `GET` / `POST` | `/oauth/authorize` | 客户端申请范围内 | 读取授权信息 / 提交用户授权 |
-| `POST` | `/oauth/token` | — | 授权码、刷新令牌或 Client Credentials 换取令牌 |
-| `GET` | `/oauth/userinfo` | `openid` | 获取授权主体；`profile` 决定是否返回基础资料 |
+| `page` | integer | 否 | 默认 `1`；非法或小于 1 时回退为 1 |
+| `limit` | integer | 否 | 默认 `20`；范围 1–100，非法或越界时回退为 20 |
+| `gd_no` | string | 否 | 按商品编号精确过滤 |
+| `search_value` | string | 否 | 按商品名称或关键词搜索 |
 
-## 商户与商品
+**成功响应**：HTTP `200`。
 
-| 方法 | 路径 | Scope | 说明 |
-| --- | --- | --- | --- |
-| `GET` | `/openapi/v1/merchant` | `merchant.profile.read` | 获取绑定商户公开资料 |
-| `GET` | `/openapi/v1/products` | `products.read` | 分页查询绑定商户已启用商品 |
-
-商品列表支持 `page`、`limit`、`gd_no` 和 `search_value`。`limit` 最大为 100。
-
-## 订单与支付
-
-以下接口要求用户授权令牌，且订单必须属于当前授权用户和客户端绑定商户。
-
-| 方法 | 路径 | Scope | 说明 |
-| --- | --- | --- | --- |
-| `POST` | `/openapi/v1/orders` | `orders.create` | 创建订单 |
-| `GET` | `/openapi/v1/orders/{order_no}` | `orders.read` | 获取订单详情 |
-| `POST` | `/openapi/v1/orders/{order_no}/payment` | `payments.create` | 创建支付会话 |
-| `GET` | `/openapi/v1/orders/{order_no}/payment` | `payments.read` | 查询支付状态 |
-
-创建订单示例：
-
-```json filename="创建订单请求"
-{
-  "gd_no": "PRODUCT_NO",
-  "quantity": 1,
-  "payment_no": "PAYMENT_CHANNEL_NO",
-  "other_ipu": {}
-}
+```json
+{"list":[],"total":0,"page":1,"limit":20}
 ```
 
-成功时返回 HTTP `201`：
+`list` 为商品对象数组，`total` 为匹配总数，`page` 和 `limit` 为本次生效的分页值。商品对象中与接入相关的字段如下：
 
-```json filename="201 Created"
-{
-  "order_no": "ORDER_NO"
-}
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `gd_no`、`gd_name` | string | 商品编号、名称 |
+| `gd_description` | string | 商品介绍 |
+| `actual_price`、`retail_price` | integer | 实际售价、参考价；八位定点金额 |
+| `currency` | string | 商品计价币种 |
+| `currency_decimals` | integer | 币种显示精度，不改变金额缩放比例 |
+| `in_stock` | integer | 库存 |
+| `buy_limit_num` | integer | 单次最大购买量；0 表示不限制 |
+| `payment_policy` | string | `automatic` 或 `allowlist` |
+| `payment_methods` | string[] | 可选，支付渠道编号；不提供渠道名称和结算报价 |
+| `other_ipu_cnf` | string[] | 可选，商品附加输入配置，见 [交易接入约定](/zh/developer/commerce/) |
+| `wholesale_price_cnf` | string[] | 可选，批发价格配置；最终订单金额以平台计算结果为准 |
+| `buy_prompt` | string | 可选，购买提示 |
+
+商品对象还可能返回展示和管理相关字段；接入方应忽略不使用的字段。金额解析规则见 [数据格式](/zh/developer/data-formats/)。
+
+## 创建订单
+
+`POST /openapi/v1/orders`
+
+**权限**：`orders.create`，必须为用户授权令牌。商品须属于客户端绑定商户且已启用。买家由令牌中的授权用户确定。
+
+**JSON 请求体**：
+
+| 参数 | 类型 | 必填 | 约束 |
+| --- | --- | --- | --- |
+| `gd_no` | string | 是 | 绑定商户的商品编号 |
+| `quantity` | integer | 是 | 正整数，受库存及单次购买限制约束 |
+| `payment_no` | string | 是 | 平台实际支付渠道编号；不是币种代码或渠道显示名称 |
+| `other_ipu` | object | 条件必填 | 字符串键值对；内容由商品 `other_ipu_cnf` 决定，没有附加输入时可省略或传 `{}` |
+
+```json
+{"gd_no":"PRODUCT_NO","quantity":1,"payment_no":"PAYMENT_CHANNEL_NO","other_ipu":{}}
 ```
 
-## 调用约束
+**成功响应**：HTTP `201`，`order_no` 为 string。
 
-- 不要通过前端代码暴露机密客户端的 Secret。
-- 只请求业务实际需要的最小 Scope。
-- 金额字段统一按八位定点整数处理，币种小数位不改变缩放比例，详见[金额与数据格式](/zh/developer/data-formats/)。
-- 遇到 `401 invalid_token` 应重新授权或刷新令牌；遇到 `403 insufficient_scope` 不应盲目重试。
-- 商户停用会返回 `merchant_inactive`，需先恢复商户状态。
-- 订单创建和支付操作应由接入方设置幂等保护，避免用户重复点击造成重复请求。
+```json
+{"order_no":"ORDER_NO"}
+```
+
+金额由平台计算，客户端不提交订单总价或买家编号。创建成功不代表已付款。该接口没有通用幂等键契约，重复请求可能生成不同订单。
+
+参数解析错误返回 HTTP `400`；库存、限购、支付渠道等业务条件未满足时可返回 `422`。商品编号及资源归属不满足时按实际响应处理，不能据此推断其他商户资源是否存在。
+
+## 读取订单
+
+`GET /openapi/v1/orders/{order_no}`
+
+**权限**：`orders.read`，必须为用户授权令牌。路径参数 `order_no` 为 string、必填，来源为创建订单响应。
+
+订单必须同时属于当前授权用户和客户端绑定商户。该接口不支持读取商户全部客户的订单。
+
+**成功响应**：HTTP `200`，订单对象：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `order_no`、`gd_no`、`title` | string | 订单编号、商品编号、订单标题 |
+| `quantity` | integer | 购买数量 |
+| `status` | integer | `0` 待支付，`1` 已付款处理中，`2` 已取消，`3` 已完成 |
+| `status_label` | string | 状态展示文本；业务判断使用数值状态 |
+| `currency`、`currency_decimals` | string、integer | 商品计价币种及显示精度 |
+| `total_amount`、`discount_amount` | integer | 商品总额及优惠金额，八位定点 |
+| `handling_amount`、`pay_amount` | integer | 订单手续费和支付金额记录，八位定点；付款展示优先使用下方支付币种字段 |
+| `payment_currency`、`payment_currency_decimals` | string、integer | 支付币种及显示精度 |
+| `payment_subtotal`、`payment_handling_amount`、`payment_pay_amount` | integer | 支付币种下的小计、手续费及实际支付金额，八位定点 |
+| `payment_no`、`payment_name` | string | 订单支付渠道编号和名称 |
+| `payment_methods` | string[] | 可选，订单记录的支付渠道范围 |
+| `trade_no` | string | 订单记录的交易编号 |
+| `paid_time`、`created_at`、`updated_at` | string 或 null | `YYYY-MM-DD HH:mm:ss`，不携带时区 |
+
+## 发起支付
+
+`POST /openapi/v1/orders/{order_no}/payment`
+
+**权限**：`payments.create`，必须为用户授权令牌。路径参数 `order_no` 为 string、必填，校验与读取订单相同的用户和商户归属。
+
+**JSON 请求体**：
+
+| 参数 | 类型 | 必填 | 约束 |
+| --- | --- | --- | --- |
+| `payment_no` | string | 是 | 订单绑定且仍可用的支付渠道编号 |
+
+```json
+{"payment_no":"PAYMENT_CHANNEL_NO"}
+```
+
+**成功响应**：HTTP `200`。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `trade_no` | string | 支付会话编号 |
+| `redirect` | string | 支付跳转地址；相对地址按平台服务地址解析 |
+| `expire_time` | integer | 支付会话到期时间，Unix 秒时间戳 |
+
+该请求会实际发起支付；TDC 渠道可能在请求过程中扣款。HTTP `200` 及浏览器回跳均不能单独证明付款完成，应查询支付状态。请求格式错误可返回 `400`，支付业务条件不满足可返回 `422`。
+
+## 查询支付状态
+
+`GET /openapi/v1/orders/{order_no}/payment`
+
+**权限**：`payments.read`，必须为用户授权令牌。路径参数和资源归属规则与读取订单相同。
+
+**成功响应**：HTTP `200`。
+
+```json
+{"status":1}
+```
+
+| `status` | 含义 | 后续处理 |
+| --- | --- | --- |
+| `0` | 待支付 | 有间隔、有超时上限地轮询 |
+| `1` | 已付款 | 停止支付轮询；读取订单详情判断交付是否完成 |
+| `2` | 已取消 | 停止支付轮询 |
+
+此处状态与订单详情 `status` 含义不同。业务状态、异常重试和支付副作用详见 [交易接入约定](/zh/developer/commerce/)。

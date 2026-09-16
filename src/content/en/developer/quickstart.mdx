@@ -20,13 +20,15 @@ Prepare:
 
 | Name | Purpose |
 | --- | --- |
-| `PLATFORM_URL` | Platform website visited by users, including the authorization page |
-| `API_BASE_URL` | Deployed backend API root for token and OpenAPI requests |
+| `AUTHORIZATION_ENDPOINT` | Full authorization page URL assigned to this client |
+| `API_BASE_URL` | Assigned business API base URL, including its path prefix |
+| `TOKEN_ENDPOINT` | Full assigned token endpoint |
+| `USERINFO_ENDPOINT` | Full assigned userinfo endpoint |
 | `CLIENT_ID` | Approved client identifier |
 | `REDIRECT_URI` | Registered callback address you control |
 | `CLIENT_SECRET` | Confidential clients only; store on the server |
 
-Values such as `{API_BASE_URL}` elsewhere in these docs are placeholders to replace. The API is not the documentation site. A reverse proxy may add a path prefix; confirm the deployment address instead of assuming every environment uses `/api`.
+Obtain these service URLs from Developer Center → Application configuration → Service URLs after approval. Addresses are assigned per client. Preserve the complete base path and use the supplied OAuth endpoints without deriving them from another address. Keep URLs in application configuration and update them when the platform notifies you of a change. Documentation and callback URLs are not service endpoints.
 
 ## 3. Establish identity authorization first
 

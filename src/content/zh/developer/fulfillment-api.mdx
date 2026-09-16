@@ -1,0 +1,74 @@
+# API 发货确认
+
+外部供应系统可通过商品的 `external_api` 供货方式接收发货请求。平台只有在供应方返回经过签名的 `delivered` 结果并持久化交付内容后，才把订单标记为完成；HTTP 2xx 本身不代表发货成功。
+
+> 此能力当前已在源码实现，但仍待后端迁移、配置和前后端生产部署。生产环境出现对应商品选项和回调路由前，不应据此开始真实供货。
+
+## 商品配置
+
+商户或平台人员在商品编辑页选择“外部 API 发货”，配置：
+
+- 外部商品编号；
+- 公网 HTTPS 发货地址；
+- 公网 HTTPS 查询地址；
+- 至少 16 位的 HMAC 签名密钥；
+- 可选的下单前检查地址。
+
+签名密钥保存后不回显。修改商品密钥不会改变已经创建订单保存的配置快照。平台拒绝回环、私网、链路本地和云元数据地址，并在实际连接时再次检查 DNS 解析结果。
+
+## 平台请求
+
+平台向发货地址或查询地址发送 `POST application/json`：
+
+```json
+{
+  "action": "create",
+  "fulfillment_no": "stable-global-id",
+  "order_no": "platform-order-no",
+  "product_no": "merchant-sku",
+  "quantity": 2,
+  "buyer_input": { "account": "buyer-value" },
+  "callback_url": "https://api.example/fulfillment/callback",
+  "external_task_no": ""
+}
+```
+
+`action` 为 `create` 或 `query`。查询时会携带供应方先前返回的 `external_task_no`。请求头：
+
+```http
+Idempotency-Key: {fulfillment_no}
+X-TDCloud-Timestamp: 2026-09-16T10:30:00Z
+X-TDCloud-Signature: sha256={hex-hmac}
+```
+
+签名原文为 `unix_timestamp + "." + raw_body`，算法为 HMAC-SHA256。供应方必须按 `fulfillment_no` 去重，重复的 `create` 不能重复开通或发放商品。
+
+## 同步响应
+
+供应方返回 JSON，并使用同一密钥对原始响应体设置时间戳和签名头：
+
+```json
+{
+  "status": "accepted",
+  "external_task_no": "supplier-task-123",
+  "external_order_no": "supplier-order-456",
+  "result": { "account": "created" },
+  "message": "买家可见的交付说明",
+  "delivered_at": "2026-09-16T10:30:00Z"
+}
+```
+
+| `status` | 平台处理 |
+| --- | --- |
+| `delivered` | 保存结果并完成订单 |
+| `accepted` | 保存外部任务号，稍后查询 |
+| `retryable_failure` | 记录明确未交付并按计划重试 |
+| `final_failure` | 停止自动完成并进入人工处理 |
+
+响应体最大 1 MiB，保存给买家查看的 `result` 最大 64 KiB。响应签名时间与平台接收时间相差不得超过 5 分钟。
+
+## 超时、查询与回调
+
+网络超时表示结果未知。配置查询地址后，平台下一次先发送 `query`，不会立即重放 `create`。供应方也可向请求中的 `callback_url` 发送同样结构的签名 JSON，并增加 `fulfillment_no`。
+
+相同的已交付结果可以安全重试。外部任务号冲突、订单已经取消或隔离，以及完成后收到非交付状态时，平台返回冲突并保留记录，不会回退或复活订单。供应方应保存原始请求、`fulfillment_no`、外部任务号和最终结果用于对账，但不要记录 HMAC 密钥或买家不必要的敏感数据。

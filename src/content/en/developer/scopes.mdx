@@ -7,7 +7,10 @@ Scopes define the maximum capabilities an application can request. User consent 
 | Scope | Capability | Merchant required? |
 | --- | --- | --- |
 | `openid` | Pairwise subject and ID Token | No |
-| `profile` | Basic user profile | No |
+| `profile` | Username and nickname, excluding email | No |
+| `email` | Email address and verification status | No |
+
+Email access requires approved `email` capability and user consent: request `openid email` or `openid profile email`. Existing clients are not automatically expanded. Administrators can review scope changes in the OAuth client review screen; changes revoke existing user grants and tokens and require new user consent.
 
 `openid` requires a `nonce`. A “Sign in with TD Cloud” integration normally requests only `openid profile`.
 
@@ -45,7 +48,7 @@ merchant.profile.read products.read
 Order and payment operations require a real user authorization.
 
 ```bash filename="Client Credentials"
-curl -X POST "{API_BASE_URL}/oauth/token" \
+curl -X POST "{TOKEN_ENDPOINT}" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=client_credentials" \
   --data-urlencode "client_id={CLIENT_ID}" \

@@ -1,14 +1,14 @@
-# 商品、订单与支付接入
+# 交易接入约定
 
-本页按“读取商品 → 用户下单 → 发起支付 → 查询付款与交付”的顺序串起接口。所有请求使用已审核客户端的 OAuth Access Token；交易需要真实用户授权。
+交易链路为商品查询、订单创建、支付发起和状态查询。本页定义业务依赖、状态判断及重试约束；各接口参数类型和响应字段见 [API 参考](/zh/developer/api-reference/)。所有请求使用已审核客户端的 OAuth Access Token，订单与支付要求用户授权主体。
 
-## 接入前确认
+## 业务前置条件
 
 客户端已绑定自己启用中的商户，并取得所需的 `products.read`、`orders.create`、`orders.read`、`payments.create`、`payments.read`。只获取商品时可使用符合条件的 Client Credentials，订单与支付则不可以。
 
 示例中的编号和 Token 需要替换；`payment_no` 是实际支付渠道编号，不是“Stripe”或“TDC”这样的显示名称。
 
-## 1. 读取商品
+## 商品与附加输入
 
 ~~~bash
 curl "{API_BASE_URL}/openapi/v1/products?page=1&limit=20" \
@@ -21,7 +21,7 @@ curl "{API_BASE_URL}/openapi/v1/products?page=1&limit=20" \
 
 当前 OpenAPI 未提供独立的支付渠道发现与结算报价路由。接入前需与平台确认商品可用的渠道编号和付款展示方式；不要把登录态的内部账户接口当作 OAuth OpenAPI 使用。
 
-## 2. 创建用户订单
+## 订单创建与金额确认
 
 ~~~bash
 curl -X POST "{API_BASE_URL}/openapi/v1/orders" \
@@ -40,7 +40,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/orders" \
 
 立即保存订单号，再读取 `GET /openapi/v1/orders/{order_no}` 展示保存的订单金额。创建订单未提供通用的请求幂等键契约；重复 POST 可能创建不同订单。网络超时不能直接等同于创建失败，应在自己的业务系统保留操作状态并防止重复提交。
 
-## 3. 发起支付
+## 支付发起与副作用
 
 ~~~bash
 curl -X POST "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \
@@ -63,7 +63,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \
 
 这里的链接与时间仅示意字段。按实际返回的支付地址处理；相对地址需要按平台确认的服务地址解析，不能直接拼到你自己的应用域名。
 
-## 4. 查询付款与交付
+## 付款与交付状态
 
 ~~~bash
 curl "{API_BASE_URL}/openapi/v1/orders/{order_no}/payment" \

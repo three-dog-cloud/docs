@@ -1,0 +1,74 @@
+# API fulfillment confirmation
+
+An external supplier can receive fulfillment requests for products using the `external_api` supply mode. The platform completes an order only after it receives a signed `delivered` result and persists the delivery. An HTTP 2xx response by itself never means that fulfillment succeeded.
+
+> This capability is implemented in the current source tree but still requires the backend migration, configuration, and frontend/backend production deployment. Do not start live fulfillment until the production product option and callback route are available.
+
+## Product configuration
+
+A merchant or platform operator selects External API fulfillment and configures:
+
+- an external product identifier;
+- a public HTTPS create endpoint;
+- a public HTTPS query endpoint;
+- an HMAC signing secret of at least 16 characters;
+- an optional pre-order validation endpoint.
+
+The secret is write-only after save. Rotating product configuration does not change the snapshot stored for an existing order. Loopback, private, link-local and cloud metadata addresses are rejected, and DNS results are checked again while connecting.
+
+## Platform request
+
+The platform sends `POST application/json` to the create or query endpoint:
+
+```json
+{
+  "action": "create",
+  "fulfillment_no": "stable-global-id",
+  "order_no": "platform-order-no",
+  "product_no": "merchant-sku",
+  "quantity": 2,
+  "buyer_input": { "account": "buyer-value" },
+  "callback_url": "https://api.example/fulfillment/callback",
+  "external_task_no": ""
+}
+```
+
+`action` is `create` or `query`. Query requests include the supplier task identifier returned previously. Request headers are:
+
+```http
+Idempotency-Key: {fulfillment_no}
+X-TDCloud-Timestamp: 2026-09-16T10:30:00Z
+X-TDCloud-Signature: sha256={hex-hmac}
+```
+
+The HMAC-SHA256 input is `unix_timestamp + "." + raw_body`. Suppliers must deduplicate by `fulfillment_no`; retrying `create` must not provision or issue the product twice.
+
+## Synchronous response
+
+Return JSON and sign the exact response body with the same timestamp and signature headers:
+
+```json
+{
+  "status": "accepted",
+  "external_task_no": "supplier-task-123",
+  "external_order_no": "supplier-order-456",
+  "result": { "account": "created" },
+  "message": "Buyer-visible delivery instructions",
+  "delivered_at": "2026-09-16T10:30:00Z"
+}
+```
+
+| `status` | Platform action |
+| --- | --- |
+| `delivered` | Persist the result and complete the order |
+| `accepted` | Save the supplier task and query later |
+| `retryable_failure` | Record a definite non-delivery and retry on schedule |
+| `final_failure` | Stop automatic completion and require operator attention |
+
+The response body is limited to 1 MiB and buyer-visible `result` data to 64 KiB. The signed timestamp must be within five minutes of receipt.
+
+## Timeout, query and callback
+
+A network timeout leaves the result unknown. When a query endpoint is configured, the next attempt sends `query` before replaying `create`. The supplier may also post a signed body with the same result fields plus `fulfillment_no` to the request's `callback_url`.
+
+The same delivered result can be retried safely. Conflicting supplier task identifiers, cancelled or quarantined orders, and non-delivery states received after completion produce a conflict and are recorded; they never regress or revive the order. Retain the original request, `fulfillment_no`, supplier task and final result for reconciliation, but do not log the HMAC secret or unnecessary buyer data.

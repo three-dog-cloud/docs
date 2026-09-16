@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-16
+
+- Recorded the independent merchant and platform card-code inventory workspaces merged to the main branches. Inventory is a first-class object associated with a product, with direct creation, strict UTF-8 bulk import, state management and bulk disable. Multi-unit orders reserve and deliver the same number of distinct codes.
+- Recorded the online developer API console merged to the main branches. It can select approved scopes, obtain a user token through the real Authorization Code with PKCE flow, call UserInfo and OpenAPI endpoints, and display real status, headers and response data.
+- Recorded the merged notification-administration fix: the delivered message snapshot is visible, and legacy support-ticket Telegram built-in channels can be disabled or cleaned up without an unsupported-channel conflict.
+- Documented the no-Client-Secret platform debug flow and external API fulfillment confirmation. These improvements currently exist only in the working source trees and have not been committed, migrated or deployed; they are not production releases until the corresponding behavior and entry points exist.
+- Synchronized merchant products, buyer orders, OAuth scopes and API reference while distinguishing source implementation, documentation publication and production deployment.
+
 ## 2026-09-03
 
 - Added first-visit, account security, connected-account, notification and support guides.

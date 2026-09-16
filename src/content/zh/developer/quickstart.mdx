@@ -1,56 +1,73 @@
-# 开发者接入起步
+# 接入概览
 
-先选择需要的能力，再申请客户端。只接入平台登录时，不需要开通商户；代用户下单和支付时，需要绑定自己已启用的商户。
+三狗云通过 OAuth 2.0 提供用户身份授权和店铺 OpenAPI。第三方应用使用审核通过的客户端获取 Access Token，再在批准的权限和资源范围内调用接口。
 
-## 1. 选择接入方式
+## 服务地址
 
-| 目标 | 客户端与流程 | Scope |
+服务地址由平台按客户端分配。应用审核通过后，在 **开发者中心 → 应用接入配置 → 服务地址** 获取当前客户端的配置。文档使用以下占位符，不指定固定部署域名：
+
+| 配置项 | 文档占位符 | 用途 |
 | --- | --- | --- |
-| 用户登录 | 公共或机密客户端，授权码 + PKCE | `openid profile` |
-| 服务端同步店铺与商品 | 机密客户端，Client Credentials | `merchant.profile.read products.read` |
-| 用户在你的应用购买商品 | 用户授权，绑定商户 | 按需申请商品、订单和支付 Scope |
+| API Base URL | `{API_BASE_URL}` | 业务接口根地址，保留平台分配的完整路径前缀 |
+| 用户授权地址 | `{AUTHORIZATION_ENDPOINT}` | 浏览器跳转的完整授权页面地址 |
+| 令牌端点 | `{TOKEN_ENDPOINT}` | 换取或刷新令牌的完整地址 |
+| 用户信息端点 | `{USERINFO_ENDPOINT}` | 获取授权用户身份的完整地址 |
 
-浏览器、桌面和移动应用无法隐藏固定 Secret，应选择公共客户端；具备安全后端的应用可选择机密客户端。详见[客户端与密钥](/zh/developer/oauth-client/)。
+业务接口使用 API Base URL 拼接文档路径，例如 `{API_BASE_URL}/openapi/v1/products`。OAuth 端点使用分配的完整地址，不要根据 API 域名推导或自行增删 `/api` 等路径前缀。
 
-## 2. 申请并准备环境
+这些地址可能随客户端接入安排不同，应保存为应用配置，不硬编码到业务逻辑中。平台调整地址时需按通知更新配置；文档地址和客户端回调地址不作为服务地址使用。`{CLIENT_ID}`、`{ACCESS_TOKEN}` 等表示需替换为当前请求实际值的参数。
 
-获得开发者邀请后，在申请页填写应用名称、介绍、主页、客户端类型、回调地址和 Scope，等待审核。通过后到开发者中心核对配置；机密客户端按页面提供的轮换入口生成并保存 Secret。
+## 接入条件
 
-准备以下值：
+- **开发者资格**：开发者入口采用邀请和审核机制，每个账号最多拥有一个客户端。
+- **应用配置**：需登记客户端类型、回调地址和申请权限。审核通过后，在开发者中心获取 `client_id`；机密客户端还需生成 `client_secret`。
+- **用户身份授权**：无需商户身份；通常申请 `openid profile`；需要邮箱时另行申请 `email`。
+- **店铺与交易能力**：申请人必须拥有已启用商户，客户端固定绑定该商户。不能指定其他商户编号访问其他店铺。
 
-| 名称 | 用途 |
+申请字段、类型选择和配置变更限制见 [应用申请与配置](/zh/developer/oauth-client/)。
+
+## 授权方式与能力范围
+
+| 业务能力 | 授权方式 | 客户端要求 |
+| --- | --- | --- |
+| 用户登录、读取用户身份 | `authorization_code` + PKCE | 公共或机密客户端 |
+| 用户下单、查询订单、发起支付、查询支付状态 | `authorization_code` + PKCE | 公共或机密客户端，已绑定商户 |
+| 服务端读取店铺与商品 | `client_credentials` | 机密客户端，已绑定商户 |
+| 延续用户授权 | `refresh_token` | 使用同一客户端取得的 Refresh Token |
+
+`client_credentials` 仅支持 `merchant.profile.read`、`products.read`，不能代表用户下单或支付。权限名称、可用主体和商户绑定规则见 [权限范围](/zh/developer/scopes/)。
+
+## 鉴权约定
+
+**用户授权**：应用生成 PKCE、`state` 和按需提供的 `nonce` → 浏览器跳转授权页 → 平台将授权结果返回已登记的 `redirect_uri` → 应用验证回调并向令牌端点换码。
+
+所有用户授权客户端均要求 PKCE，算法固定为 `S256`。授权码有效期 5 分钟，只能使用一次；机密客户端换码、刷新时还必须在请求体中提交 `client_secret`。参数、响应和刷新契约见 [OAuth 授权](/zh/developer/authorization-code/)。
+
+**业务请求**：用户信息与 OpenAPI 请求使用下列请求头：
+
+```http
+Authorization: Bearer {ACCESS_TOKEN}
+```
+
+Access Token 的实际权限以令牌响应 `scope` 为准，不能超出客户端批准范围。订单及支付还会校验授权用户和绑定商户的资源归属。平台账户登录令牌、Refresh Token 和 ID Token 均不能替代 OAuth Access Token。
+
+## 请求与响应约定
+
+| 项目 | 契约 |
 | --- | --- |
-| `PLATFORM_URL` | 用户访问的平台网站地址，用于打开授权页面 |
-| `API_BASE_URL` | 后端 API 的部署根地址，用于令牌和 OpenAPI 请求 |
-| `CLIENT_ID` | 已审核客户端编号 |
-| `REDIRECT_URI` | 已登记且由你控制的回调地址 |
-| `CLIENT_SECRET` | 仅机密客户端，在服务端保存 |
+| 令牌请求 | `POST {TOKEN_ENDPOINT}`，支持表单编码与 JSON；文档统一使用 `application/x-www-form-urlencoded` |
+| 业务写请求 | `Content-Type: application/json` |
+| 成功响应 | 直接返回 JSON 资源或列表，没有统一的 `data` 外层 |
+| 业务编号 | 字符串，保留原值 |
+| 金额 | JSON 整数，统一按 `10^8` 缩放；详见 [数据格式](/zh/developer/data-formats/) |
+| 有效期 | `expires_in` 为持续秒数，支付 `expire_time` 为 Unix 秒时间戳 |
+| 错误处理 | 先检查 HTTP 状态，再解析错误字段；详见 [错误与排查](/zh/developer/troubleshooting/) |
 
-本文其他页面的 `{API_BASE_URL}` 等写法是占位符，使用前需要替换。API 地址不是文档站地址；部署可能通过反向代理添加前缀，应向平台确认实际地址，不能默认所有环境都有 `/api`。
+业务接口的方法、权限、参数和返回字段见 [API 参考](/zh/developer/api-reference/)。交易状态、副作用与重试边界见 [交易接入约定](/zh/developer/commerce/)。
 
-## 3. 先跑通身份授权
+## 当前能力边界
 
-按[授权码与 PKCE](/zh/developer/authorization-code/)完成授权。Node.js 服务端可用以下方式生成参数：
-
-~~~js
-import { randomBytes, createHash } from 'node:crypto'
-
-const codeVerifier = randomBytes(32).toString('base64url')
-const codeChallenge = createHash('sha256')
-  .update(codeVerifier)
-  .digest('base64url')
-const state = randomBytes(32).toString('base64url')
-const nonce = randomBytes(32).toString('base64url')
-~~~
-
-每次授权重新生成，并把 verifier、state、nonce 绑定到发起授权的会话。示例只生成参数，不替代回调处理和会话存储。PKCE 的标准流程见 [RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)。
-
-换取令牌后先调用 `GET /oauth/userinfo`，以返回的 `sub` 关联本地账户。不要把“能够解码 JWT”当作验证成功，也不要把 ID Token 作为 OpenAPI 的 Bearer Token。
-
-## 4. 再接商品和订单
-
-登录验证通过后，再接入[商品、订单与支付流程](/zh/developer/commerce/)。金额先按[数据格式](/zh/developer/data-formats/)处理，错误按[接入排错](/zh/developer/troubleshooting/)分类。
-
-## 上线前检查
-
-使用自己的测试账户验证同意与拒绝授权、错误 state、过期授权码、刷新令牌轮换，以及最小 Scope。涉及交易时还需核对真实订单、付款、交付和商户入账，不能只以令牌接口返回成功作为交易上线依据。
+- 未提供标准 OIDC Discovery / JWKS 端点。通用 OIDC SDK 不能仅配置 issuer 后自动完成接入；用户身份可通过 Access Token 调用 `userinfo` 获取。不能直接信任仅解码、未验签的 ID Token。
+- 已签发客户端暂不提供类型、回调地址或权限的自助修改入口；需调整时联系平台处理。
+- OpenAPI 未提供支付渠道发现、结算报价、通用订单列表、取消订单、退款或提现接口。支付渠道编号及可用范围需在接入前与平台确认。
+- 创建订单未提供通用幂等键契约；支付请求可能实际扣款。超时后需先确认业务结果，不能直接重放写请求。

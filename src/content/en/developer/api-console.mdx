@@ -1,0 +1,43 @@
+# Online API console
+
+Approved developers can open **Developer Platform → Online API Console** to call endpoints approved for the current application and inspect the real HTTP status, duration, response headers and response body. Requests go to the real service, not a canned example or sandbox. Creating orders or starting payments creates real business data and requires an additional confirmation.
+
+> The base console is merged to the main branches. The no-Client-Secret improvement for platform-internal debug authorization described below is still an uncommitted working-tree change and has not been deployed. If production still asks for the Secret, follow production behavior until that improvement is released.
+
+## Obtain console credentials
+
+The recommended option is **Authorize this account**. Select scopes already approved for the application and let the platform open the real authorization endpoint. The console uses Authorization Code with PKCE against the real token endpoint, then fills the Access Token and Refresh Token automatically.
+
+The platform owns its internal debug callback. Even for a confidential client, this platform-marked authorization-code flow and its resulting Refresh Token do not require re-entering a Client Secret that may no longer be visible. This exception is limited to the platform debug callback and tokens issued through it. It does not weaken client authentication for the application's own redirect URIs.
+
+You may also:
+
+- paste an existing Access Token;
+- paste a Refresh Token obtained by an external flow under advanced operations;
+- use a Client Secret for an eligible confidential client's read-only `client_credentials` token.
+
+Credentials exist only in the current page's memory and disappear after refresh or close. The console cannot recover a Client Secret that the platform displayed only once.
+
+## Scopes and response fields
+
+The selector is limited to scopes already approved for the client. Actual fields depend on the token's effective scopes, the authorizing user's profile and resource ownership. For `userinfo`:
+
+- `openid` alone normally returns only the stable `sub`;
+- `profile` is required for username and nickname claims;
+- `email` is required for `email` and `email_verified`, and the account must have an email address.
+
+Seeing only `sub` therefore usually means that the current token did not receive the additional scope, not that the endpoint can return only one field. The response pane shows the real result. The example shown before sending is not a promise that every optional field will be present.
+
+## Supported endpoints
+
+The console currently covers UserInfo, merchant profile, product listing, order creation and detail, payment creation, and payment status. The authorization, token and UserInfo endpoints participate in the same real debugging flow instead of being split into unrelated login and business-API scenarios.
+
+Select an endpoint, fill its path, query or body fields, and expand the final request preview to verify the URL and parameters. Read requests can be sent directly. Mutating requests state that they will operate on real data before confirmation.
+
+## Troubleshooting order
+
+1. Check whether the endpoint scope is marked unapproved.
+2. Authorize again and select the required scope. Existing tokens do not expand when an administrator later adds client permissions.
+3. Inspect the token response's effective `scope`, then call the target endpoint.
+4. Use the real HTTP status and body to distinguish authorization, ownership and business-validation failures.
+5. When credentials or responses contain real account data, clear them and close the page after use. Do not paste them into logs or support tickets.

@@ -1,4 +1,4 @@
-# Scope 与商户绑定
+# 权限范围
 
 Scope 决定应用能请求哪些平台能力。申请客户端时选择的是能力上限，用户授权时只能在这个上限内授权。
 
@@ -7,7 +7,10 @@ Scope 决定应用能请求哪些平台能力。申请客户端时选择的是�
 | Scope | 能力 | 是否需要商户 |
 | --- | --- | --- |
 | `openid` | 获取成对主体标识和 ID Token | 否 |
-| `profile` | 读取用户基础资料 | 否 |
+| `profile` | 读取用户名与昵称，不包含邮箱 | 否 |
+| `email` | 读取邮箱地址与邮箱验证状态 | 否 |
+
+邮箱接入需申请并获批 `email`，授权请求使用 `openid email` 或 `openid profile email`。现有客户端不会自动增加权限；管理员可在 **OAuth 客户端审核 → 调整权限** 补批。权限变更会撤销旧用户授权和令牌，用户需重新同意。
 
 请求 `openid` 时必须同时提供 `nonce`。只做“使用三狗云服务登录”的应用通常申请 `openid profile` 即可。
 
@@ -32,7 +35,7 @@ Scope 决定应用能请求哪些平台能力。申请客户端时选择的是�
 - 没有启用中的商户时不能申请店铺 Scope；
 - 客户端不能填写其他人的商户编号跨店访问；
 - 绑定商户被停用后，相关 OpenAPI 调用会被拒绝；
-- 改回纯用户 Scope 后，客户端不应继续保留商户绑定。
+- 被驳回的申请修订为纯登录权限后，不再绑定商户；已签发应用不能通过重新提交申请修改权限。
 
 ## Client Credentials 的限制
 
@@ -45,7 +48,7 @@ merchant.profile.read products.read
 订单创建和支付必须有真实用户授权，不能用纯客户端身份替代用户。
 
 ```bash filename="Client Credentials"
-curl -X POST "{API_BASE_URL}/oauth/token" \
+curl -X POST "{TOKEN_ENDPOINT}" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=client_credentials" \
   --data-urlencode "client_id={CLIENT_ID}" \

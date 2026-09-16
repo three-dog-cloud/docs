@@ -1,86 +1,171 @@
-# 授权码与 PKCE
+# OAuth 授权
 
-平台要求所有用户授权客户端使用 Authorization Code + PKCE（S256）。即使是机密客户端，也不能省略 PKCE。
+平台支持 `authorization_code`、`refresh_token` 和受限的 `client_credentials`。所有用户授权请求必须使用 PKCE，算法固定为 `S256`。
 
-## 1. 生成 PKCE 与请求状态
+## 端点与调用方
 
-客户端本地生成：
+以下地址均在 **开发者中心 → 应用接入配置 → 服务地址** 获取，使用分配给当前客户端的完整值；占位符说明见 [接入概览](/zh/developer/quickstart/)。
 
-- `code_verifier`：43 到 128 个允许字符组成的随机字符串；
-- `code_challenge`：`BASE64URL(SHA256(code_verifier))`，不带填充；
-- `state`：防止跨站请求伪造并关联发起请求；
-- `nonce`：请求 `openid` 时必填，用于校验 ID Token。
+| 端点 | 调用方 | 用途 |
+| --- | --- | --- |
+| `{AUTHORIZATION_ENDPOINT}` | 用户浏览器 | 展示登录和授权页面 |
+| `POST {TOKEN_ENDPOINT}` | 第三方应用 | 换取或刷新令牌 |
+| `GET {USERINFO_ENDPOINT}` | 第三方应用 | 使用 Access Token 获取用户身份 |
 
-`code_verifier`、`state` 和 `nonce` 必须保存在发起授权的会话中，不要发送给无关第三方。
+API 域名上的 `GET/POST /oauth/authorize` 由平台授权页面使用，需要平台账号登录态；第三方应将浏览器跳转至网站授权页面，无需自行调用平台授权确认接口。
 
-## 2. 打开授权页
+## 用户授权请求
 
-```text filename="授权请求 URL"
-{PLATFORM_URL}/oauth/authorize
-  ?response_type=code
-  &client_id={CLIENT_ID}
-  &redirect_uri=https%3A%2F%2Fapp.example.com%2Foauth%2Fcallback
-  &scope=openid%20profile
-  &state={RANDOM_STATE}
-  &nonce={RANDOM_NONCE}
-  &code_challenge={S256_CHALLENGE}
-  &code_challenge_method=S256
+将下列参数编码为授权页面的 URL query。Scope 使用空格分隔，所有 URL 参数需进行 URL 编码。
+
+| 参数 | 类型 | 要求 | 说明 |
+| --- | --- | --- | --- |
+| `response_type` | string | 设为 `code` | 当前接入流程为授权码模式 |
+| `client_id` | string | 必填 | 已审核、已启用的客户端编号 |
+| `redirect_uri` | string | 必填 | 精确匹配已登记的回调地址 |
+| `scope` | string | 必填 | 至少一个权限，必须属于该客户端已批准范围 |
+| `state` | string | 必填 | 每次请求独立生成，绑定发起授权的会话；回调时校验 |
+| `code_challenge` | string | 必填 | `BASE64URL(SHA256(code_verifier))`，不带 `=` 填充，长度 43 |
+| `code_challenge_method` | string | 必填 | 固定为 `S256` |
+| `nonce` | string | 条件必填 | 请求包含 `openid` 时必填，绑定本次授权会话 |
+| `prompt` | string | 可选 | 省略时允许复用有效授权；`consent` 强制展示确认页。当前不支持 `none` 或其他值 |
+
+`code_verifier` 在接入方生成并保存，不放入授权 URL。允许长度为 43–128，字符集合为字母、数字和 `- . _ ~`。每次授权独立生成 verifier、state 和 nonce；回调换码复用该次授权的 verifier。
+
+```text filename="授权请求结构"
+{AUTHORIZATION_ENDPOINT}?response_type=code&client_id={CLIENT_ID}&redirect_uri={URL_ENCODED_REDIRECT_URI}&scope=openid%20profile&state={STATE}&nonce={NONCE}&code_challenge={CODE_CHALLENGE}&code_challenge_method=S256
 ```
 
-用户登录后会看到应用信息、请求的 Scope 和回调地址，并选择同意或拒绝。成功时回调地址获得 `code` 与原始 `state`；拒绝时获得 `error=access_denied`。
+## 授权确认与短时复用
 
-收到回调后必须先验证 `state`，再使用授权码。授权码有效期为 5 分钟且只能使用一次。
+用户在确认页主动勾选“15 分钟内不再询问”后，同一应用在当前登录会话中可复用该授权。该项默认不勾选；管理员可缩短显示时限或关闭，硬上限为 15 分钟。第三方不传入免确认时长，也不能替用户开启。
 
-## 3. 换取令牌
+复用要求：登录态有效、授权未过期或撤销、本次权限是已同意权限的子集，且应用身份、已批准权限、回调地址和相关商户资料等授权条件没有变化。时间从最后一次明确同意计算，复用不续期。退出登录、切换账号或条件不满足时，重新展示确认页。旧登录会话在重新登录前可能不提供记住选项。
 
-```bash filename="换取令牌"
-curl -X POST "{API_BASE_URL}/oauth/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "grant_type=authorization_code" \
-  --data-urlencode "client_id={CLIENT_ID}" \
-  --data-urlencode "code={AUTHORIZATION_CODE}" \
-  --data-urlencode "code_verifier={CODE_VERIFIER}" \
-  --data-urlencode "redirect_uri=https://app.example.com/oauth/callback"
+用户在 **设置 → 已授权应用** 撤销；平台管理员在 **系统管理 → 属性管理 → OAuth 授权安全策略** 配置上限，0 表示关闭。复用只省略确认页，每次仍签发新的单次授权码；接入方必须为每次请求生成并校验 state、nonce、PKCE。`prompt=consent` 可要求本次重新确认。当前不支持 `prompt=none`，也不提供无需平台登录态的后台静默登录。
+
+## 授权回调
+
+平台将浏览器重定向至请求中的 `redirect_uri`，并添加以下 query 参数：
+
+| 结果 | 参数 | 接入方处理 |
+| --- | --- | --- |
+| 用户同意 | `code`、原始 `state` | 先校验 state 与发起会话一致，再换取令牌 |
+| 用户拒绝 | `error=access_denied`、原始 `state` | 校验 state 后结束本次授权，由用户决定是否重新发起 |
+
+授权码有效期为 **5 分钟**，且只能使用一次。换码时授权码会被消费，后续参数校验失败也不能重复使用；`invalid_grant` 后应重新发起授权。错误或未知 state 不应触发换码。回调结果不等同于订单支付结果。
+
+## 令牌请求
+
+```http
+POST {TOKEN_ENDPOINT}
+Content-Type: application/x-www-form-urlencoded
 ```
 
-机密客户端还必须提交：
+接口同时支持 JSON 请求体；以下定义统一以表单为例。客户端凭据放在请求体中，当前接口不通过 HTTP Basic 请求头读取 `client_id` 和 `client_secret`。
 
-```text filename="机密客户端参数"
-client_secret={CLIENT_SECRET}
+### 公共参数
+
+| 参数 | 类型 | 要求 | 说明 |
+| --- | --- | --- | --- |
+| `grant_type` | string | 必填 | `authorization_code`、`refresh_token` 或 `client_credentials` |
+| `client_id` | string | 必填 | 客户端编号 |
+| `client_secret` | string | 条件必填 | 机密客户端所有令牌请求必填；公共客户端不使用 |
+
+### 授权码交换
+
+`grant_type=authorization_code` 时附加：
+
+| 参数 | 类型 | 要求 | 说明 |
+| --- | --- | --- | --- |
+| `code` | string | 必填 | 本次回调返回的授权码 |
+| `code_verifier` | string | 必填 | 与授权请求的 challenge 对应的原始 verifier |
+| `redirect_uri` | string | 必填 | 与本次授权请求完全一致 |
+
+```bash
+curl '{TOKEN_ENDPOINT}' \
+  --data-urlencode 'grant_type=authorization_code' \
+  --data-urlencode 'client_id={CLIENT_ID}' \
+  --data-urlencode 'code={CODE}' \
+  --data-urlencode 'code_verifier={CODE_VERIFIER}' \
+  --data-urlencode 'redirect_uri=https://app.example.com/oauth/callback'
 ```
 
-成功响应包含 `access_token`、`refresh_token`、`id_token`、`token_type`、`expires_in` 和实际授权的 `scope`。
+机密客户端在同一请求中增加 `--data-urlencode 'client_secret={CLIENT_SECRET}'`。
 
-## 4. 获取用户信息
+### 刷新令牌
 
-```bash filename="读取用户信息"
-curl "{API_BASE_URL}/oauth/userinfo" \
-  -H "Authorization: Bearer {ACCESS_TOKEN}"
-```
+`grant_type=refresh_token` 时附加：
 
-`openid` 提供稳定的成对主体标识 `sub`；同时获得 `profile` 时，响应会包含平台允许公开的基础资料。应用应以 `sub` 关联本地账户，不要依赖用户名作为唯一标识。
+| 参数 | 类型 | 要求 | 说明 |
+| --- | --- | --- | --- |
+| `refresh_token` | string | 必填 | 同一客户端最近一次获得的 Refresh Token |
 
-## 5. 刷新令牌
+Refresh Token 成功使用后被消费，并返回一组新令牌。接入方需串行刷新、原子替换旧值，不能并发复用旧 Refresh Token。刷新会验证用户授权及账号状态，失败返回 `invalid_grant` 等错误；已消费的令牌无法重放。
 
-```bash filename="刷新令牌"
-curl -X POST "{API_BASE_URL}/oauth/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "grant_type=refresh_token" \
-  --data-urlencode "client_id={CLIENT_ID}" \
-  --data-urlencode "refresh_token={REFRESH_TOKEN}"
-```
+### 服务端授权
 
-机密客户端同样提交 `client_secret`。Refresh Token 使用后会被消费并返回一组新令牌，请以新值原子替换旧值，不要并发重复刷新。
+`grant_type=client_credentials` 仅允许已绑定商户的机密客户端。附加参数：
 
-## 错误处理
+| 参数 | 类型 | 要求 | 说明 |
+| --- | --- | --- | --- |
+| `scope` | string | 必填 | 空格分隔，仅允许已批准的 `merchant.profile.read`、`products.read` |
 
-OAuth 错误使用标准形态：
+该流程不需要用户、回调或 PKCE，返回的令牌不能调用用户信息、订单或支付接口。请求示例见 [Client Credentials](/zh/developer/scopes/#client-credentials-的限制)。
 
-```json filename="OAuth 错误响应"
+## 令牌成功响应
+
+HTTP `200`，直接返回 JSON 对象。
+
+| 字段 | 类型 | 返回条件 | 说明 |
+| --- | --- | --- | --- |
+| `access_token` | string | 所有成功授权方式 | 用户信息及 OpenAPI 的 Bearer 凭据 |
+| `token_type` | string | 所有成功授权方式 | `Bearer` |
+| `expires_in` | integer | 所有成功授权方式 | Access Token 有效秒数；由部署配置决定，不应硬编码 |
+| `scope` | string | 所有成功授权方式 | 空格分隔的实际权限 |
+| `refresh_token` | string | 授权码交换、刷新 | 后续刷新使用的新凭据 |
+| `id_token` | string | 当前授权码交换、刷新响应均返回 | 不可替代 Access Token；不能将仅解码结果视为已验证身份 |
+
+Client Credentials 不返回 Refresh Token；Access Token 到期后用客户端凭据重新请求。
+
+## 用户信息
+
+`GET {USERINFO_ENDPOINT}`，请求头 `Authorization: Bearer {ACCESS_TOKEN}`，要求用户授权令牌及 `openid` 权限。
+
+HTTP `200` 响应：
+
+| 字段 | 类型 | 返回条件 | 说明 |
+| --- | --- | --- | --- |
+| `sub` | string | 必定返回 | 当前客户端范围内的用户标识，用于关联接入方账号 |
+| `preferred_username` | string | 同时授权 `profile` | 平台用户名 |
+| `nickname` | string | 同时授权 `profile` | 平台昵称 |
+| `email` | string | 同时授权 `email` 且账号已设置邮箱 | 用户当前邮箱地址 |
+| `email_verified` | boolean | 返回 `email` 时 | 平台是否已验证该邮箱；未验证为 `false` |
+
+```json filename="openid profile email 响应示例"
 {
-  "error": "invalid_grant",
-  "error_description": "..."
+  "sub": "pairwise-user-subject",
+  "preferred_username": "example-user",
+  "nickname": "示例用户",
+  "email": "user@example.com",
+  "email_verified": true
 }
 ```
 
-常见错误包括 `invalid_request`、`invalid_client`、`invalid_grant`、`invalid_scope`、`access_denied`、`invalid_token` 和 `insufficient_scope`。不要把完整 Token、Secret 或授权码记录到错误日志。
+未授权 `email` 时不返回这两个字段；未设置邮箱时也省略两者。授权范围包括 `email` 不代表账号一定有邮箱或邮箱已经验证。邮箱可能变更，不应用作账号唯一标识。邮箱字段从 UserInfo 获取，当前 ID Token 不包含邮箱声明；`email` 的字段含义遵循 [OpenID Connect Scope 定义](https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims)。
+
+用户撤销或管理员调整客户端权限后，旧授权码、Access Token、Refresh Token 失效；重新授权也不会恢复旧令牌。
+
+同一用户在不同客户端的 `sub` 可以不同。用户名和昵称不应作为唯一标识。
+
+当前未提供公开 OIDC Discovery / JWKS 端点。身份接入可通过 Access Token 请求 `userinfo`；需要独立验证 ID Token 的集成应先确认签名验证方式，不能跳过验签、受众和有效期校验。
+
+## 错误响应
+
+OAuth 错误为 JSON 对象：
+
+```json
+{"error":"invalid_grant","error_description":"..."}
+```
+
+`error` 为分类名称，`error_description` 为诊断文本，不作为稳定的程序分支依据。请求参数错误、无效授权码或 Scope 通常为 HTTP `400`；客户端认证失败为 `401 invalid_client`。资源接口还可能返回 `401 invalid_token` 或 `403 insufficient_scope`。完整检查项见 [错误与排查](/zh/developer/troubleshooting/)。

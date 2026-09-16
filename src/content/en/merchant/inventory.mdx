@@ -1,0 +1,41 @@
+# Card-code inventory
+
+The Inventory Center independently manages products supplied by unique local card codes. Open **Merchant Center → Inventory**. The account must have an approved, active merchant. Otherwise the page shows an onboarding state instead of presenting the missing merchant resource as a generic 404.
+
+## Relationship between inventory and products
+
+A card-code inventory is also the supply entity for a sellable product. The product record provides its name, pricing, payment methods and sales entry point, while inventory rows contain the units that can actually be delivered. Every local card-code inventory is therefore associated with a product, but ordinary count-based or API-fulfilled products do not necessarily have local card-code inventory.
+
+You may select **Add card-code inventory** from the Inventory Center or first create a Local unique card-code product from Products. Both routes create the same associated object; operators do not need to complete one page manually before visiting the other. The platform must, however, save a product record before importing codes so ownership, pricing and inventory isolation are defined.
+
+## Create and import
+
+1. Select **Add card-code inventory**, complete the product information and save it. A newly created item is not published automatically.
+2. Open its inventory workspace and paste codes or select a strict UTF-8 TXT file. Each line is one sellable unit.
+3. Run preflight validation and review valid, blank, duplicate and invalid rows. Invalid rows block confirmation.
+4. Confirm the import, check the available count, then verify pricing, limits and payment methods before publishing.
+
+Invalid UTF-8 is rejected instead of being silently rewritten with replacement characters. Duplicate content within the same product is rejected even when an earlier copy has already been delivered or disabled.
+
+## Quantity and multi-unit purchases
+
+One line represents one inventory unit. If a buyer purchases `8` units in one order, the platform reserves and delivers `8` different codes in that order. If fewer than eight are available, the whole order fails rather than partially fulfilling it. Unpaid orders reserve the corresponding quantity until cancellation or expiry.
+
+The product's available count is derived from inventory rows and cannot be edited directly in local card-code mode. A zero count means temporarily sold out and does not automatically change the merchant's publish setting.
+
+## Inventory states
+
+| State | Meaning | Sellable again |
+| --- | --- | --- |
+| Available | Imported and unallocated | Yes |
+| Reserved | Allocated to an order but not delivered | No |
+| Delivered | Persisted in a buyer-readable delivery record | No |
+| Disabled | Manually removed from sale with a reason | No |
+
+The inventory workspace supports state and batch filters, controlled content reveal, and disabling or restoring available rows. Bulk disable processes only rows that are still available and returns a result for every item. It never forcibly cancels an existing reservation. Delivered content cannot be returned to sale.
+
+## Payment and delivery
+
+After payment confirmation, a durable fulfillment task completes delivery. Order details show the codes assigned to the current buyer; ordinary inventory responses and other buyers' orders cannot read them. Duplicate payment notifications or task retries return the original delivery rather than selecting more codes.
+
+When payment is confirmed but fulfillment fails, operations can inspect attempts and the last error, then retry or quarantine the undelivered stock. Do not disable reserved codes to bypass exception handling; retain the order number and inventory relationship for support.

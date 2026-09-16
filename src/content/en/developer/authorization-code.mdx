@@ -14,7 +14,7 @@ Keep `code_verifier`, `state`, and `nonce` in the initiating session.
 ## 2. Open the authorization page
 
 ```text filename="Authorization URL"
-{PLATFORM_URL}/oauth/authorize
+{AUTHORIZATION_ENDPOINT}
   ?response_type=code
   &client_id={CLIENT_ID}
   &redirect_uri=https%3A%2F%2Fapp.example.com%2Foauth%2Fcallback
@@ -32,7 +32,7 @@ Validate `state` before using the code. An authorization code expires after five
 ## 3. Exchange the code
 
 ```bash filename="Exchange the code"
-curl -X POST "{API_BASE_URL}/oauth/token" \
+curl -X POST "{TOKEN_ENDPOINT}" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=authorization_code" \
   --data-urlencode "client_id={CLIENT_ID}" \
@@ -46,7 +46,7 @@ A confidential client also sends `client_secret={CLIENT_SECRET}`. A successful r
 ## 4. Read user information
 
 ```bash filename="Read user information"
-curl "{API_BASE_URL}/oauth/userinfo" \
+curl "{USERINFO_ENDPOINT}" \
   -H "Authorization: Bearer {ACCESS_TOKEN}"
 ```
 
@@ -55,7 +55,7 @@ curl "{API_BASE_URL}/oauth/userinfo" \
 ## 5. Refresh tokens
 
 ```bash filename="Refresh tokens"
-curl -X POST "{API_BASE_URL}/oauth/token" \
+curl -X POST "{TOKEN_ENDPOINT}" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "grant_type=refresh_token" \
   --data-urlencode "client_id={CLIENT_ID}" \
@@ -76,3 +76,16 @@ OAuth errors have the following shape:
 ```
 
 Common errors include `invalid_request`, `invalid_client`, `invalid_grant`, `invalid_scope`, `access_denied`, `invalid_token`, and `insufficient_scope`. Never log complete tokens, secrets, or authorization codes.
+
+
+## Email claims
+
+Request `openid email` (or `openid profile email`) after the client has been approved for `email`. `GET {USERINFO_ENDPOINT}` returns `email` and the boolean `email_verified` only when the user granted `email` and the account has an email address. Both fields are omitted otherwise. An unverified email returns `email_verified: false`. `profile` alone never exposes email. Use `sub` for account linkage; email can change. These claims are returned by UserInfo, not the ID Token. See the [OpenID Connect scope definition](https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims).
+
+## Remembered consent
+
+The consent screen offers an unchecked option to remember consent for up to 15 minutes. Administrators may shorten the limit or disable it; clients cannot set it. Reuse requires a valid current platform login, an unexpired and unrevoked grant, the same or narrower scopes, and unchanged application identity, approved scopes, callbacks and relevant merchant information. Automatic reuse never extends the interval. Each request still requires fresh state, nonce and PKCE and receives a new single-use code.
+
+The optional authorization parameter `prompt=consent` forces confirmation. Other prompt values, including `none`, are unsupported. Without an existing platform login, the user must sign in. Sessions created before this feature may require a new login before remembering consent is offered.
+
+Users revoke grants from Settings → Authorized applications. Administrators configure the maximum in System management → Properties → OAuth consent security policy; 0 disables reuse. Revoking a grant or changing a client's approved scopes invalidates existing codes, access tokens and refresh tokens, including after subsequent reauthorization.
