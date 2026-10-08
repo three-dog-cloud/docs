@@ -1,10 +1,12 @@
 # 交易接入约定
 
+本页针对 TDCloud 商品订单。外部系统自有业务订单、按金额收款和支付返回地址使用独立的 [通用商户收款](/zh/developer/merchant-payments/)。
+
 交易链路为商品查询、订单创建、支付发起和状态查询。本页定义业务依赖、状态判断及重试约束；各接口参数类型和响应字段见 [API 参考](/zh/developer/api-reference/)。所有请求使用已审核客户端的 OAuth Access Token，订单与支付要求用户授权主体。
 
 ## 业务前置条件
 
-客户端已绑定自己启用中的商户，并取得所需的 `products.read`、`orders.create`、`orders.read`、`payments.create`、`payments.read`。只获取商品时可使用符合条件的 Client Credentials，订单与支付则不可以。
+客户端已绑定自己启用中的商户，并取得所需的 `products.read`、`orders.create`、`orders.read`、`payments.create`、`payments.read`。只读取商品时可使用符合条件的 Client Credentials，此商品订单链路的下单与支付仍需用户授权。
 
 示例中的编号和 Token 需要替换；`payment_no` 是实际支付渠道编号，不是“Stripe”或“TDC”这样的显示名称。
 
@@ -19,7 +21,7 @@ curl "{API_BASE_URL}/openapi/v1/products?page=1&limit=20" \
 
 附加字段配置中的 `service_account=服务账号=true` 表示提交键名为 `service_account` 且必填；不能用展示名称作为 JSON 键。
 
-当前 OpenAPI 未提供独立的支付渠道发现与结算报价路由。接入前需与平台确认商品可用的渠道编号和付款展示方式；不要把登录态的内部账户接口当作 OAuth OpenAPI 使用。
+商品订单的 OpenAPI 未提供独立的支付渠道发现与结算报价路由；通用收款渠道目录不作为本链路的商品支付报价。接入前需与平台确认商品可用的渠道编号和付款展示方式；不要把登录态的内部账户接口当作 OAuth OpenAPI 使用。
 
 ## 订单创建与金额确认
 

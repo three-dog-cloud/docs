@@ -1,0 +1,216 @@
+# 通用商户收款
+
+外部系统已有自己的订单、订阅和交付时，可由商户服务端按金额创建 TDCloud 收款单，再让买家跳转收银台。无需预先创建 TDCloud 商品；TDCloud 确认收款和结算，商户系统自行更新业务订单与权益。
+
+本页按后端 `bd12d98`、前端 `b76f67e` 的接口编写。返回地址功能需要平台完成 `0048` 迁移及前后端发布；真实 Stripe 回跳仍需环境验收。接入前向平台确认目标环境已更新，文档发布不代表业务环境已经启用。
+
+## 1. 准备商户服务端凭据
+
+使用已绑定启用商户的**机密客户端**，申请并获批 `merchant_payments.create`、`merchant_payments.read`。现有应用不会自动增加权限，需联系平台调整。所有本页 OpenAPI 只接受 `client_credentials` 令牌，不接受用户授权令牌；调用方不提交买家编号或商户编号。
+
+服务地址使用开发者中心分配的完整地址，见 [接入概览](/zh/developer/quickstart/)。Secret 和 Access Token 仅保存在商户服务端。
+
+```bash
+curl -X POST "{TOKEN_ENDPOINT}" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=client_credentials" \
+  --data-urlencode "client_id={CLIENT_ID}" \
+  --data-urlencode "client_secret={CLIENT_SECRET}" \
+  --data-urlencode "scope=merchant_payments.create merchant_payments.read"
+```
+
+使用响应的 `access_token` 和实际 `scope`，按 `expires_in` 管理有效期。Client Credentials 不签发用户 Refresh Token，过期后用服务端凭据重新获取令牌。公共客户端或未绑定商户的客户端不能使用此流程。
+
+## 2. 查询可用支付渠道
+
+`GET {API_BASE_URL}/openapi/v1/merchant-payment-channels`
+
+**权限**：`merchant_payments.read`。HTTP `200` 返回 `{"items": [...]}`；无可用渠道时数组为空。
+
+```bash
+curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+```
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `payment_no` | string | 建单时使用的真实渠道编号，不是显示名称 |
+| `name` | string | 渠道名称 |
+| `provider` | string | 当前支持 `stripe`、`dog-coin`（TDC） |
+| `owner` | string | `platform` 或 `merchant` |
+| `currency` | string | 渠道支付币种 |
+| `login_required` | boolean | 渠道本身是否必须登录；商户禁止未登录消费时，收银台也会要求登录 |
+| `test_mode` | boolean | 是否使用管理员分配的 Stripe 测试渠道 |
+
+可用渠道受商户归属、启用状态和调试授权约束。首期支持 TDC 与已配置签名 Webhook 的 Stripe。TDC 始终要求买家登录 TDCloud；其他渠道是否允许未登录消费由商户设置。不要将本目录套用于商品订单的渠道发现或报价。
+
+## 3. 创建收款单
+
+`POST {API_BASE_URL}/openapi/v1/merchant-payments`
+
+**权限**：`merchant_payments.create`。请求头：`Authorization: Bearer {ACCESS_TOKEN}`、`Content-Type: application/json`。
+
+| 参数 | 类型 | 必填 | 约束 |
+| --- | --- | --- | --- |
+| `external_reference` | string | 是 | 商户业务订单引用，去除首尾空白后非空，最长 191 字节；创建后固定 |
+| `idempotency_key` | string | 是 | 同一次建单的重试键，最长 128 字节；同商户内唯一 |
+| `amount_minor` | integer | 是 | 正整数，按支付币种精度表示金额；最大 9007199254740991，且须能在平台内部精度内表示 |
+| `currency` | string | 是 | 已启用且渠道支持的币种，使用大写代码 |
+| `payment_no` | string | 是 | 上一步取得的可用渠道编号 |
+| `description` | string | 否 | 最长 500 字节，去除首尾空白 |
+| `return_url` | string | 否 | 支付确认后返回的完整 HTTPS 地址，最长 2048 字节；规则见下一节 |
+
+### 金额示例
+
+此接口使用 `amount_minor`，与商品订单接口的八位定点金额不同。
+
+| 付款金额 | `currency` | `amount_minor` | 返回的 `currency_decimals` |
+| --- | --- | --- | --- |
+| 10.50 USD | USD | 1050 | 2 |
+| 10.50 TDC | TDC | 1050000000 | 8 |
+
+使用整数或十进制库按币种精度换算，不使用浮点乘法四舍五入拼金额。创建成功后核对返回的金额、币种和精度，不用实时汇率改写原订单。
+
+```bash
+curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","payment_no":"CHANNEL_NO","description":"订单说明","return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+```
+
+**成功响应**：HTTP `201`，重复同参数请求也返回 `201` 和同一收款单。
+
+```json
+{
+  "order_no": "MP_EXAMPLE",
+  "external_reference": "merchant-order-123",
+  "payment_no": "CHANNEL_NO",
+  "amount_minor": 1050,
+  "currency": "USD",
+  "currency_decimals": 2,
+  "status": "pending",
+  "test_mode": false,
+  "checkout_url": "https://tdcloud.cc/checkout/merchant/MP_EXAMPLE?token=CHECKOUT_TOKEN",
+  "return_url": "https://merchant.example/orders/merchant-order-123?source=tdcloud#payment",
+  "expires_at": "2026-10-08T14:00:00+08:00"
+}
+```
+
+示例编号、地址、时间均为占位值。保存 `order_no` 与业务订单的映射，将实际返回的 `checkout_url` 交给买家浏览器；不能把它当作已支付凭证或在日志中暴露其中的令牌。有效期以最新查单结果为准，发起渠道会话时可能调整。
+
+### 幂等与重试
+
+同一商户、同一 `idempotency_key`、相同规范化参数返回同一单。金额、币种、渠道、外部引用、描述或返回地址变化返回 HTTP `409 payment_conflict`。不同商户的幂等空间隔离；`external_reference` 本身不是去重键。
+
+超时后以原键和原参数重试，不能仅因没有收到响应就换键再建一张可支付单。确需新支付尝试时，先核对原单和渠道结果，避免两张单均可付款。
+
+## 4. 接入支付返回地址
+
+`return_url` 由商户服务端创建收款单时设置，随后固定。首尾空白会被去除；必须是完整 HTTPS URL，不允许账号密码、反斜线或未编码空白/控制字符。未传、空字符串或历史单没有此字段时，买家留在原收银台流程。
+
+此参数与 OAuth 的 `redirect_uri` 不同：无需登记为 OAuth 回调，可以按业务订单设置路径、查询参数和 `#` 片段。浏览器自行在收银台 URL 上添加 `return_url` 或 `status=paid` 不会覆盖保存地址或确认支付。
+
+支付流程如下：
+
+1. 买家进入 TDCloud `checkout_url`，按商户策略登录或匿名付款。
+2. Stripe 完成或取消付款先回 TDCloud 收银台；TDC 支付也在收银台确认。
+3. 收银台向服务端查单。只有返回 `paid` 后才自动进入保存的 `return_url`，并保留“返回商户”入口。
+4. 异步付款未决时继续查单；取消支付、到期或退款/拒付不触发成功返回。浏览器取消不保证收款单立即变为终态。
+5. 商户返回页调用自己的后端，再由后端查 TDCloud 收款单，核对金额、币种和稳定 `event_id`，幂等更新业务订单。
+
+原地址的路径、查询参数和片段保留；TDCloud 不自动添加 Token、单号或支付状态。商户应在原地址中携带自己的业务引用，并将回跳仅作为触发查单的入口。浏览器付款成功页、回跳参数或渠道会话创建成功都不能作为交付依据。
+
+## 5. 服务端查单与对账
+
+| 方法与路径 | 权限 | 用途 |
+| --- | --- | --- |
+| `GET /openapi/v1/merchant-payments/{order_no}` | `merchant_payments.read` | 查询本商户一单，HTTP `200` 返回收款单对象 |
+| `GET /openapi/v1/merchant-payments` | `merchant_payments.read` | 按本商户外部引用或 TDCloud 单号过滤，HTTP `200` 返回 `{"items": [...]}` |
+
+列表必须提供至少一个 `external_reference` 或 `order_no`；两者同时提供时共同匹配。`limit` 默认 20，范围 1–100，非法或越界回退 20。按最新记录优先返回，不提供页码、总数或完整商户订单分页。
+
+```bash
+curl "{API_BASE_URL}/openapi/v1/merchant-payments/{ORDER_NO}" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+
+curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  --data-urlencode "external_reference=merchant-order-123" \
+  --data-urlencode "limit=20"
+```
+
+单笔结果包含建单返回的字段；下列字段用于确认支付：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `status` | string | 收款单状态，见下表 |
+| `event_id` | string，可省略 | 确认支付后的稳定、唯一支付事件号；用于商户幂等记账 |
+| `provider_trade_no` | string，可省略 | 渠道交易号；TDC 为 `TDC:{order_no}` |
+| `occurred_at` | string 或 null | 确认支付时间，RFC 3339，保留响应中的时区 |
+| `settlement_tdc` | string，可省略 | 平台渠道锁定的结算 TDC，按八位定点整数表示；非支付凭证 |
+| `return_url` | string，可省略 | 已保存的商户返回地址 |
+
+已支付响应示例（仅展示核对字段）：
+
+```json
+{
+  "order_no": "MP_EXAMPLE",
+  "external_reference": "merchant-order-123",
+  "payment_no": "CHANNEL_NO",
+  "amount_minor": 1050,
+  "currency": "USD",
+  "currency_decimals": 2,
+  "status": "paid",
+  "event_id": "MPE_EXAMPLE",
+  "provider_trade_no": "pi_EXAMPLE",
+  "occurred_at": "2026-10-08T13:45:00+08:00"
+}
+```
+
+`expires_at` 同样为 RFC 3339 时间，不是 Unix 秒。单号、事件号和渠道交易号按字符串保存。平台不提供本能力的商户 Webhook 通知契约，应做有间隔、有超时上限的服务端查单和定期对账。
+
+| 状态 | 含义与处理 |
+| --- | --- |
+| `pending` | 未决，继续核对；不能交付，也不能仅凭本地计时判失败 |
+| `paid` | 收款与商户账务处理已确认；核对订单引用、金额和币种后按 `event_id` 只记一次 |
+| `review` | 会话创建结果不明，需平台人工核对；不要换键重复收款 |
+| `expired` | 已核对无付款的到期状态；晚到的真实收款仍可能被核验并转为 `paid`，应继续异常对账 |
+| `refunded` | 已确认退款，保留原支付事件；商户按自己的退款与权益规则处理 |
+| `chargeback` | 已确认拒付，保留原支付事件；商户处理争议和业务状态 |
+
+不要套用商品订单接口的数字 `status`。当前未定义通用 `failed`、`cancelled` 或公开取消接口；未来未知状态保留为待核对，不按支付成功处理。
+
+## 6. 结算、手续费与调试
+
+平台渠道按建单汇率转为 TDC 记入商户钱包；平台按商户配置 0–30 天冻结，0 天可实时使用。商户自有渠道由商户自行收款，TDCloud 不重复入账；平台手续费在建单时检查资金，在获取支付链接前再次检查并预占，优先使用可用 TDC，再使用已获批授信。无法筹足则拒绝交易。
+
+投诉先阻止该单冻结销售款释放，核实损失后依次使用该单冻结款、担保金、可用余额及待追回余额处理。不可返还的手续费可能导致损失超出冻结款。退款、拒付和投诉处置由平台核验，不能用修改商户业务订单代替平台账务动作；本页没有商户自助退款/提现 OpenAPI。更多操作见 [支付与结算](/zh/merchant/payments/)。
+
+`test_mode: true` 仅表示管理员指定分配的 Stripe 测试渠道。消费者不发生真实 Stripe 扣款，但 TDCloud 正常订单、账务、钱包 TDC 和冻结流程仍执行。测试权限不由管理员身份自动获得，也不代表可随意混用生产业务；测试账号、商品和交付由管理员维护。
+
+## 7. 错误、限流与验收
+
+错误至少包含字符串 `error`。HTTP `202` 的 `provider_result_pending` 也不是支付成功。按 HTTP 状态和错误码分支，不依赖中文文案。
+
+| HTTP | `error` | 处理 |
+| --- | --- | --- |
+| 400 | `invalid_request` | 核对参数、金额及列表过滤条件 |
+| 400 | `invalid_return_url` | 修正 HTTPS 地址；同时返回 `error_description`、`field: "return_url"` |
+| 401 | `invalid_token` | 重新获取有效 OAuth 令牌 |
+| 403 | `insufficient_scope`、`client_credentials_required` | 核对批准权限及令牌主体 |
+| 403 | `merchant_inactive` | 请平台恢复绑定商户 |
+| 403 | `login_required` | 收银台要求买家登录 |
+| 403 | `payment_debug_access_denied` | 核对调试渠道分配与启用状态 |
+| 404 | `payment_not_found` | 核对单号及本商户归属，不推断其他商户资源 |
+| 409 | `payment_conflict` | 原幂等键参数冲突；收银台支付状态冲突也可能使用此码 |
+| 409 | `provider_result_mismatch` | 由平台核对渠道会话、金额和币种 |
+| 422 | `channel_unavailable`、`currency_rate_unavailable` | 重新确认渠道、币种及平台汇率 |
+| 422 | `merchant_fee_funding_unavailable` | 核对平台费率、可用钱包和授信额度 |
+| 202 | `provider_result_pending` | 渠道结果未明，保留原单并核对 |
+| 429 | `rate_limited` | 按 `Retry-After` 等待，避免持续重试 |
+| 503 | `rate_limit_unavailable` | 限流服务暂不可用，有限退避重试 |
+| 500 | `server_error` | 保存脱敏上下文并向平台反馈；写请求复用原幂等键 |
+
+建单每客户端每分钟 60 次；查单、过滤列表与渠道目录共用每客户端每分钟 300 次。收银台按 IP 限速：查询 180 次、发起支付 30 次/分钟。
+
+正式接入验证：动态金额、返回页、同键重试及冲突、跨商户拒绝、未登录策略、TDC 登录限制、异步及到期竞态、稳定事件去重、钱包只入账一次，以及退款/拒付后的业务处理。Stripe Webhook 验签由 TDCloud 完成；接入方不能以文档示例或 mock 结果替代真实环境验收。

@@ -2,11 +2,13 @@
 
 The buyer's charge, merchant revenue and wallet balance are separate values. Use merchant orders and wallet transactions to confirm settlement.
 
-## Platform channels are currently used
+## Channels and merchant settings
 
 Products can use enabled platform TDC or online-payment channels, subject to their payment settings and the available quote.
 
-Merchant-owned payment channels are not open. You cannot currently add, modify or enable your own Stripe or similar receiving configuration. A menu entry or API name does not establish availability.
+In **Merchant Center → Payment and settlement**, configure guest purchases and inspect the platform-assigned hold, guarantee deposit and fee credit. TDC always requires buyer sign-in, even if guest purchases are enabled.
+
+Merchant-owned Stripe requires a platform-configured fee rate. Create a disabled channel, obtain its dedicated Webhook URL, configure Stripe callbacks, then supply the signing secret and enable it. Available TDC or approved credit must fund the platform fee; insufficient funding or unavailable credit rejects the transaction. Merchant-owned channels receive funds directly without duplicate TDCloud wallet revenue.
 
 ## Buyer charge versus merchant revenue
 
@@ -38,3 +40,11 @@ If payment is confirmed but no revenue record appears, report the order number t
 Delivery can remain pending after payment confirmation and revenue settlement. A fulfillment retry does not mean the buyer needs to pay again. See [Merchant orders and reconciliation](/en/merchant/orders/).
 
 There is no withdrawal or automatic-refund procedure in this guide because the public interface does not yet offer those complete flows. Ask the platform how such requests are handled.
+
+## General collection for external orders
+
+For your own business orders, use [General merchant collection OpenAPI](/en/developer/merchant-payments/) to create by amount without TDCloud catalog products or buyer OAuth authorization. Your server can supply `return_url`; TDCloud returns the buyer after confirmed payment. Your server must still query payment before updating the business order.
+
+Platform-channel collection settles TDC at the creation-time rate. The platform assigns a 0–30 day hold per merchant; zero is immediately available. Complaints prevent release of that order's frozen sales funds. Confirmed losses use those funds, the guarantee deposit, available balance and outstanding recovery balance in sequence. Nonrefundable fees can make losses exceed frozen funds. Verified refunds and chargebacks retain the original payment event and are recorded by the platform.
+
+Administrator-assigned Stripe test channels do not charge real buyer funds, but normal wallet TDC posting, holds and fulfillment can still run. Only explicitly assigned accounts have debug access; administrators maintain test products and fulfillment. Return URLs require the relevant migration and backend/frontend deployment; see the integration guide for environment availability.

@@ -19,6 +19,10 @@ Scope 决定应用能请求哪些平台能力。申请客户端时选择的是�
 | Scope | 能力 | 可用主体 |
 | --- | --- | --- |
 | `merchant.profile.read` | 读取绑定商户公开资料 | 用户授权、Client Credentials |
+| `products.write` | 创建与更新绑定商户的外部 API 商品 | 仅 Client Credentials |
+| `inventory.write` | 更新绑定商户的虚拟库存 | 仅 Client Credentials |
+| `merchant_payments.create` | 按金额创建本商户通用收款单 | 仅 Client Credentials |
+| `merchant_payments.read` | 查询本商户收款单及可用渠道 | 仅 Client Credentials |
 | `products.read` | 读取绑定商户已启用商品 | 用户授权、Client Credentials |
 | `orders.create` | 代表已授权用户在绑定商户下单 | 仅用户授权 |
 | `orders.read` | 读取属于授权用户与绑定商户的订单 | 仅用户授权 |
@@ -42,10 +46,11 @@ Scope 决定应用能请求哪些平台能力。申请客户端时选择的是�
 只有“机密客户端 + 已绑定商户”才能使用 `client_credentials`。当前该流程只允许：
 
 ```text filename="允许的 Scope"
-merchant.profile.read products.read
+merchant.profile.read products.read products.write inventory.write
+merchant_payments.create merchant_payments.read
 ```
 
-订单创建和支付必须有真实用户授权，不能用纯客户端身份替代用户。
+商品订单的 `orders.*`、`payments.*` 仍要求用户授权。`merchant_payments.*` 专用于商户服务端通用收款，不要求买家拥有 TDCloud 账号；具体登录要求由商户策略和渠道决定，见 [通用商户收款](/zh/developer/merchant-payments/)。以上为客户端可申请的范围，只请求实际获批且需要的权限。
 
 ```bash filename="Client Credentials"
 curl -X POST "{TOKEN_ENDPOINT}" \

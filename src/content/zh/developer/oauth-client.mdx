@@ -49,6 +49,12 @@
 - 协议、主机、端口、路径、查询参数及末尾斜杠均需一致，不支持通配符。
 - 本地与生产回调需分别登记。回调路径由接入方实现，平台不会为应用创建该路由。
 
+## 服务端收款与支付返回地址
+
+外部系统只需收款时，使用绑定商户的机密客户端申请 `merchant_payments.create`、`merchant_payments.read`，按 [通用商户收款](/zh/developer/merchant-payments/) 获取 Client Credentials 令牌。无需为买家先建立 TDCloud 商品订单。
+
+收款单的 `return_url` 是支付确认后的业务返回地址，在建单请求中按订单提供；它与登记的 OAuth `redirect_uri` 分开，不接收授权码，也不作为支付证明。现有应用需由平台补批新增 Scope。
+
 ## 客户端凭据
 
 `client_id` 是可公开的应用编号。`client_secret` 用于机密客户端向令牌端点证明应用身份，仅保存在服务端。

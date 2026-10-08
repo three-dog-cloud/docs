@@ -10,6 +10,8 @@ export const requiredPages = [
   'en/welcome/index.html',
   'zh/developer/index.html',
   'en/developer/index.html',
+  'zh/developer/merchant-payments/index.html',
+  'en/developer/merchant-payments/index.html',
 ];
 
 export function verifyExport(directory = 'out') {

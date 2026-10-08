@@ -22,6 +22,12 @@ A public client is not a client with a weaker secret. It has no location that ca
 
 HTTPS encrypts transport between the application and platform. A `client_secret` does not encrypt business data and cannot replace HTTPS or database encryption.
 
+## Server collection and payment return URLs
+
+For external-order collection, request `merchant_payments.create` and `merchant_payments.read` on a merchant-bound confidential client and obtain a Client Credentials token as described in [General merchant collection](/en/developer/merchant-payments/). No buyer-owned TDCloud catalog order is required.
+
+A collection’s `return_url` is its per-order business destination after confirmed payment. It is separate from the registered OAuth `redirect_uri`, receives no authorization code and is not payment evidence. Existing clients need platform approval for added scopes.
+
 ## Secret storage and rotation
 
 - Store the secret only in server-side secret management or environment configuration.

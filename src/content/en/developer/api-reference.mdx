@@ -57,11 +57,24 @@ A successful response uses HTTP `201`:
 }
 ```
 
+## General collection for external business orders
+
+These routes require a merchant server's Client Credentials token. They do not create a TDCloud catalog order or require buyer OAuth authorization.
+
+| Method | Path | Scope | Description |
+| --- | --- | --- | --- |
+| `GET` | `/openapi/v1/merchant-payment-channels` | `merchant_payments.read` | Discover this merchant's available channels |
+| `POST` | `/openapi/v1/merchant-payments` | `merchant_payments.create` | Create with amount, external reference and idempotency key |
+| `GET` | `/openapi/v1/merchant-payments/{order_no}` | `merchant_payments.read` | Query this merchant's collection |
+| `GET` | `/openapi/v1/merchant-payments` | `merchant_payments.read` | Filter by external reference or order number |
+
+Creation accepts `external_reference`, `idempotency_key`, `amount_minor`, `currency`, `payment_no`, optional `description` and optional `return_url`. The stored HTTPS destination is opened only after server-confirmed `paid`. USD 10.50 uses `amount_minor: 1050`; this is not the catalog-order eight-decimal scale. Collection statuses are strings. See [General merchant collection](/en/developer/merchant-payments/) for complete parameters, response fields, filtering, errors and retries.
+
 ## Integration constraints
 
 - Never expose a confidential client's secret in frontend code.
 - Request only the minimum scopes the application uses.
-- Amounts use a fixed eight-decimal integer scale; currency precision does not change that scale. See [Amounts and data formats](/en/developer/data-formats/).
+- Catalog-order amounts use a fixed eight-decimal integer scale; general collection uses currency minor units. See [Amounts and data formats](/en/developer/data-formats/).
 - Reauthorize or refresh on `401 invalid_token`; do not blindly retry `403 insufficient_scope`.
 - `merchant_inactive` means the merchant must be re-enabled first.
 - Apply idempotency protection around order and payment actions to prevent duplicate user submissions.

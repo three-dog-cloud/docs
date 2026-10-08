@@ -1,5 +1,7 @@
 # Product, order and payment integration
 
+This page covers TDCloud catalog orders. For your own business orders, dynamic-amount collection and payment return URLs, use [General merchant collection](/en/developer/merchant-payments/).
+
 This guide connects product discovery, user ordering, payment initiation and status checks. Requests use an approved client's OAuth Access Token. Transactions require real user authorization.
 
 ## Prerequisites
@@ -19,7 +21,7 @@ The response has the form `{"list": [], "total": 0, "page": 1, "limit": 20}`. Pr
 
 An additional-field entry such as `service_account=Service account=true` requires the key `service_account`. Do not use the display label as the JSON key.
 
-Current OpenAPI routes do not include independent payment-channel discovery or checkout quotes. Confirm available channel identifiers and payment presentation with the platform first. Internal account endpoints that require platform sign-in are not OAuth OpenAPI endpoints.
+Catalog-order OpenAPI routes do not include independent payment-channel discovery or checkout quotes. The general-collection directory is not a catalog checkout quote. Confirm available channel identifiers and payment presentation with the platform first. Internal account endpoints that require platform sign-in are not OAuth OpenAPI endpoints.
 
 ## 2. Create a user order
 

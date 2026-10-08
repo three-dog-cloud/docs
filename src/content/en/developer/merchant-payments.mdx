@@ -1,0 +1,216 @@
+# General merchant collection
+
+When your system owns its orders, subscriptions and fulfillment, your merchant server can create a TDCloud collection order for a dynamic amount and send the buyer to its checkout. No TDCloud catalog product is required. TDCloud confirms payment and settlement; your system updates its own business orders and entitlements.
+
+This contract follows backend `bd12d98` and frontend `b76f67e`. Return URLs require the platform's `0048` migration and backend/frontend deployment; real Stripe return-flow acceptance remains outstanding. Confirm that your target environment is updated. Publishing documentation does not enable the business environment.
+
+## 1. Prepare merchant server credentials
+
+Use a **confidential client** bound to your active merchant, with approved `merchant_payments.create` and `merchant_payments.read` scopes. Existing applications do not gain these scopes automatically; request a platform scope adjustment. All OpenAPI routes on this page require a `client_credentials` token, not a user-authorized token. Do not submit a buyer ID or merchant ID.
+
+Use the complete service URLs assigned in Developer Center; see [Quickstart](/en/developer/quickstart/). Keep the Secret and Access Token on your server.
+
+```bash
+curl -X POST "{TOKEN_ENDPOINT}" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "grant_type=client_credentials" \
+  --data-urlencode "client_id={CLIENT_ID}" \
+  --data-urlencode "client_secret={CLIENT_SECRET}" \
+  --data-urlencode "scope=merchant_payments.create merchant_payments.read"
+```
+
+Use the returned `access_token`, effective `scope` and `expires_in`. Client Credentials does not issue a user Refresh Token; obtain another token with server credentials after expiry. Public clients and clients without a merchant binding cannot use this flow.
+
+## 2. Discover available channels
+
+`GET {API_BASE_URL}/openapi/v1/merchant-payment-channels`
+
+**Scope**: `merchant_payments.read`. HTTP `200` returns `{"items": [...]}`; the array is empty when no channel is available.
+
+```bash
+curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `payment_no` | string | Actual channel identifier for creation, not its display name |
+| `name` | string | Channel name |
+| `provider` | string | Currently `stripe` or `dog-coin` (TDC) |
+| `owner` | string | `platform` or `merchant` |
+| `currency` | string | Payment currency |
+| `login_required` | boolean | Whether the channel itself requires sign-in; checkout also requires sign-in if the merchant disables guest purchases |
+| `test_mode` | boolean | Whether this is an explicitly assigned Stripe test channel |
+
+Availability depends on merchant ownership, enablement and debug grants. Initial providers are TDC and Stripe with a signing Webhook configured. TDC always requires the buyer to sign in to TDCloud. The merchant controls guest purchases for other channels. This directory is not a channel-discovery or quote API for catalog orders.
+
+## 3. Create a collection order
+
+`POST {API_BASE_URL}/openapi/v1/merchant-payments`
+
+**Scope**: `merchant_payments.create`. Headers: `Authorization: Bearer {ACCESS_TOKEN}` and `Content-Type: application/json`.
+
+| Parameter | Type | Required | Constraints |
+| --- | --- | --- | --- |
+| `external_reference` | string | Yes | Your business-order reference; nonempty after trimming, at most 191 bytes, immutable |
+| `idempotency_key` | string | Yes | Retry key for this creation attempt, at most 128 bytes, unique within the merchant |
+| `amount_minor` | integer | Yes | Positive integer in payment-currency minor units; at most 9007199254740991 and representable at platform internal precision |
+| `currency` | string | Yes | Enabled, channel-supported currency; use its uppercase code |
+| `payment_no` | string | Yes | An available identifier from the preceding directory |
+| `description` | string | No | At most 500 bytes, trimmed |
+| `return_url` | string | No | Absolute HTTPS destination after confirmed payment, at most 2048 bytes; see below |
+
+### Amount examples
+
+This endpoint uses `amount_minor`, which differs from the fixed eight-decimal amounts used by catalog-order APIs.
+
+| Payment amount | `currency` | `amount_minor` | Returned `currency_decimals` |
+| --- | --- | --- | --- |
+| 10.50 USD | USD | 1050 | 2 |
+| 10.50 TDC | TDC | 1050000000 | 8 |
+
+Convert with integer or decimal arithmetic using the currency precision, rather than rounding floating-point multiplication. Verify returned amount, currency and precision after creation; do not reprice an existing order using live rates.
+
+```bash
+curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  -H "Content-Type: application/json" \
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","payment_no":"CHANNEL_NO","description":"Order description","return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+```
+
+**Success**: HTTP `201`. An identical retry also returns `201` and the same order.
+
+```json
+{
+  "order_no": "MP_EXAMPLE",
+  "external_reference": "merchant-order-123",
+  "payment_no": "CHANNEL_NO",
+  "amount_minor": 1050,
+  "currency": "USD",
+  "currency_decimals": 2,
+  "status": "pending",
+  "test_mode": false,
+  "checkout_url": "https://tdcloud.cc/checkout/merchant/MP_EXAMPLE?token=CHECKOUT_TOKEN",
+  "return_url": "https://merchant.example/orders/merchant-order-123?source=tdcloud#payment",
+  "expires_at": "2026-10-08T14:00:00+08:00"
+}
+```
+
+Identifiers, URLs and dates above are examples. Save the mapping between `order_no` and your business order, then send the buyer to the actual returned `checkout_url`. It is not payment evidence; do not expose its token in logs. Use the latest queried expiry because starting a provider session may adjust it.
+
+### Idempotency and retries
+
+The same merchant, `idempotency_key` and normalized parameters return the same order. Changing amount, currency, channel, external reference, description or return URL returns HTTP `409 payment_conflict`. Merchant namespaces are separate; `external_reference` alone is not a deduplication key.
+
+After a timeout, retry with the original key and parameters. A missing response does not justify creating another payable order with a new key. Reconcile the original order and provider result before starting a genuinely new payment attempt.
+
+## 4. Integrate the payment return URL
+
+The merchant server supplies `return_url` during creation, after which it is immutable. Leading/trailing whitespace is trimmed. It must be an absolute HTTPS URL without credentials, backslashes or unencoded whitespace/control characters. Omitted, empty or absent on historical orders means the existing checkout flow remains.
+
+This differs from OAuth `redirect_uri`: it does not need OAuth callback registration and may contain an order-specific path, query and fragment. Adding `return_url` or `status=paid` to the checkout browser URL does not override the stored destination or confirm payment.
+
+The flow is:
+
+1. The buyer visits TDCloud `checkout_url`, signing in or paying as a guest according to merchant policy.
+2. Stripe completion or cancellation first returns to TDCloud checkout. TDC also confirms payment there.
+3. Checkout queries the server. Only `paid` triggers automatic navigation to the stored `return_url`, with a “Return to merchant” link retained.
+4. Pending asynchronous payments continue to be queried. Cancellation, expiry, refunds and chargebacks do not trigger a successful return. Browser cancellation does not guarantee an immediate terminal order status.
+5. Your return page calls your server, which queries TDCloud, checks amount, currency and stable `event_id`, and updates the business order idempotently.
+
+The original path, query and fragment are preserved. TDCloud does not append a token, order number or payment status. Include your own business reference in the supplied URL and use the return only to initiate a server query. A success page, browser parameters or a created provider session is not fulfillment evidence.
+
+## 5. Query and reconcile on the server
+
+| Method and path | Scope | Purpose |
+| --- | --- | --- |
+| `GET /openapi/v1/merchant-payments/{order_no}` | `merchant_payments.read` | Read one order belonging to your merchant; HTTP `200` returns an order object |
+| `GET /openapi/v1/merchant-payments` | `merchant_payments.read` | Filter by your merchant's external reference or TDCloud order number; HTTP `200` returns `{"items": [...]}` |
+
+The list requires at least one of `external_reference` and `order_no`. Supplying both requires both to match. `limit` defaults to 20, accepts 1–100, and falls back to 20 for invalid/out-of-range values. Results are newest first, without page numbers, totals or full merchant-order pagination.
+
+```bash
+curl "{API_BASE_URL}/openapi/v1/merchant-payments/{ORDER_NO}" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}"
+
+curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
+  -H "Authorization: Bearer {ACCESS_TOKEN}" \
+  --data-urlencode "external_reference=merchant-order-123" \
+  --data-urlencode "limit=20"
+```
+
+An order includes the creation-response fields. Additional payment fields are:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `status` | string | Collection status, as below |
+| `event_id` | string, optional | Stable, unique confirmed-payment event identifier for idempotent merchant posting |
+| `provider_trade_no` | string, optional | Provider transaction identifier; TDC uses `TDC:{order_no}` |
+| `occurred_at` | string or null | Confirmed payment time in RFC 3339; preserve its supplied time zone |
+| `settlement_tdc` | string, optional | Platform-channel locked settlement TDC as an eight-decimal fixed-point integer; not payment evidence |
+| `return_url` | string, optional | Stored merchant destination |
+
+Confirmed-payment response example (verification fields only):
+
+```json
+{
+  "order_no": "MP_EXAMPLE",
+  "external_reference": "merchant-order-123",
+  "payment_no": "CHANNEL_NO",
+  "amount_minor": 1050,
+  "currency": "USD",
+  "currency_decimals": 2,
+  "status": "paid",
+  "event_id": "MPE_EXAMPLE",
+  "provider_trade_no": "pi_EXAMPLE",
+  "occurred_at": "2026-10-08T13:45:00+08:00"
+}
+```
+
+`expires_at` is also RFC 3339, not Unix seconds. Preserve identifiers as strings. No merchant Webhook notification contract is provided for this capability; use bounded server polling and periodic reconciliation.
+
+| Status | Meaning and action |
+| --- | --- |
+| `pending` | Unresolved; keep checking, do not fulfill or infer failure from your local timer |
+| `paid` | Payment and merchant accounting are confirmed; check reference, amount and currency and post once by `event_id` |
+| `review` | Provider session creation had an unknown result; request platform reconciliation rather than collecting again with a new key |
+| `expired` | Expired after checking for payment; a verified late payment can still transition to `paid`, so retain exception reconciliation |
+| `refunded` | Confirmed refund, original payment event retained; apply your business refund/entitlement policy |
+| `chargeback` | Confirmed chargeback, original payment event retained; handle disputes and business state |
+
+Do not apply catalog orders' numeric `status` mapping. There is currently no generic `failed`/`cancelled` state or public cancellation API. Preserve unknown future statuses for reconciliation rather than treating them as paid.
+
+## 6. Settlement, fees and debugging
+
+Platform channels convert at the creation-time rate and post TDC to the merchant wallet. The platform assigns each merchant a 0–30 day hold; zero allows immediate availability. Merchant-owned channels receive funds themselves, without duplicate TDCloud wallet credit. Platform fees are checked at creation and checked/reserved again before a payment link is obtained, using available TDC followed by approved credit. Insufficient funding rejects the transaction.
+
+A complaint first prevents that order's frozen sales funds from being released. Confirmed losses use that order's frozen funds, guarantee deposit, available balance and outstanding recovery balance in sequence. Nonrefundable fees can make the loss exceed the frozen amount. The platform verifies refunds, chargebacks and complaints; changing your business order does not perform platform accounting. No merchant self-service refund/withdrawal OpenAPI is documented here. See [Payment and settlement](/en/merchant/payments/).
+
+`test_mode: true` identifies a Stripe test channel explicitly assigned by an administrator. The buyer is not charged real Stripe funds, but normal TDCloud order, accounting, wallet TDC and hold flows still run. Administrator identity alone grants no access. Test accounts, products and fulfillment are maintained by the administrator.
+
+## 7. Errors, limits and acceptance
+
+Errors include at least a string `error`. HTTP `202 provider_result_pending` is not payment success. Branch on HTTP status and error code, not translated text.
+
+| HTTP | `error` | Action |
+| --- | --- | --- |
+| 400 | `invalid_request` | Check parameters, amount and list filters |
+| 400 | `invalid_return_url` | Fix the HTTPS destination; also returns `error_description` and `field: "return_url"` |
+| 401 | `invalid_token` | Obtain a valid OAuth token |
+| 403 | `insufficient_scope`, `client_credentials_required` | Check approved scopes and token actor |
+| 403 | `merchant_inactive` | Request re-enablement of the bound merchant |
+| 403 | `login_required` | The buyer must sign in at checkout |
+| 403 | `payment_debug_access_denied` | Check the test-channel grant and enablement |
+| 404 | `payment_not_found` | Check identifier and merchant ownership without inferring another merchant's resources |
+| 409 | `payment_conflict` | Parameters conflict for the original key; checkout state conflicts can also use this code |
+| 409 | `provider_result_mismatch` | Ask the platform to reconcile session, amount and currency |
+| 422 | `channel_unavailable`, `currency_rate_unavailable` | Check channel, currency and platform rate |
+| 422 | `merchant_fee_funding_unavailable` | Check configured fees, available wallet funds and approved credit |
+| 202 | `provider_result_pending` | Preserve and reconcile the existing order |
+| 429 | `rate_limited` | Wait according to `Retry-After` |
+| 503 | `rate_limit_unavailable` | Rate-limit service is unavailable; use bounded backoff |
+| 500 | `server_error` | Keep sanitized context and contact the platform; retry creation with its original idempotency key |
+
+Creation allows 60 requests per client per minute. Detail, filtered list and channel directory share 300 requests per client per minute. Checkout limits by IP are 180 reads and 30 starts per minute.
+
+Verify dynamic amounts, the return page, identical retries and conflicting parameters, cross-merchant rejection, guest policy, TDC login, asynchronous/expiry races, stable event deduplication, one wallet credit and refund/chargeback handling. TDCloud verifies Stripe Webhooks. Documentation examples and mocks do not replace real-environment acceptance.

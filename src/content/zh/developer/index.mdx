@@ -13,6 +13,7 @@ asIndexPage: true
   <a href="/zh/developer/authorization-code/"><strong>OAuth 授权</strong><br />授权请求、回调协议、令牌交换与刷新。</a>
   <a href="/zh/developer/scopes/"><strong>权限范围</strong><br />Scope、访问主体、商户绑定与服务端授权。</a>
   <a href="/zh/developer/api-reference/"><strong>API 参考</strong><br />接口方法、参数类型、响应字段与访问约束。</a>
+  <a href="/zh/developer/merchant-payments/"><strong>通用商户收款</strong><br />服务端按金额建单、查单对账和支付完成返回地址。</a>
   <a href="/zh/developer/commerce/"><strong>交易接入约定</strong><br />订单与支付状态、业务副作用及重试边界。</a>
   <a href="/zh/developer/data-formats/"><strong>数据格式</strong><br />金额精度、状态值、分页与时间格式。</a>
   <a href="/zh/developer/troubleshooting/"><strong>错误与排查</strong><br />HTTP 状态、OAuth 错误及配置检查项。</a>
@@ -20,6 +21,6 @@ asIndexPage: true
 
 ## 接口范围
 
-用户身份能力无需商户身份。店铺与交易接口只能访问客户端绑定商户的资源；订单和支付必须使用用户授权令牌，同时校验用户与商户归属。
+用户身份能力无需商户身份。店铺与交易接口只能访问客户端绑定商户的资源；商品订单和对应支付必须使用用户授权令牌，同时校验用户与商户归属；外部业务订单的通用收款则使用商户服务端 Client Credentials，与买家账号独立。
 
 API Base URL 和各 OAuth 服务地址由平台按客户端分配，在开发者中心的“服务地址”中查看。文档中的接口路径与地址占位符说明见 [接入概览](/zh/developer/quickstart/)。账户管理、商户后台与平台内部授权确认接口不属于第三方 OpenAPI。

@@ -20,6 +20,10 @@ This differs from a currency's display precision. `currency_decimals` and `payme
 
 Do not divide `125000000` by 100 merely because USD normally displays two decimal places.
 
+## General collection uses currency minor units
+
+`/openapi/v1/merchant-payments` uses `amount_minor` at currency precision: submit 1050 for USD 10.50 (2 decimals) or 1050000000 for TDC 10.50 (8 decimals). Do not reuse catalog orders’ uniform eight-decimal scale. Its `status` is a string, `expires_at` and `occurred_at` are RFC 3339 timestamps, and filtered lists return `items` and require an external reference or order number. See [General merchant collection](/en/developer/merchant-payments/).
+
 ## Product versus payment amounts
 
 | Fields | Meaning |

@@ -19,6 +19,10 @@ Email access requires approved `email` capability and user consent: request `ope
 | Scope | Capability | Actor |
 | --- | --- | --- |
 | `merchant.profile.read` | Read bound merchant public profile | User or Client Credentials |
+| `products.write` | Create/update bound-merchant external API products | Client Credentials only |
+| `inventory.write` | Update bound-merchant virtual inventory | Client Credentials only |
+| `merchant_payments.create` | Create an amount-based collection for this merchant | Client Credentials only |
+| `merchant_payments.read` | Read this merchant’s collections and available channels | Client Credentials only |
 | `products.read` | Read enabled products for the bound merchant | User or Client Credentials |
 | `orders.create` | Create an order for the authorized user | User only |
 | `orders.read` | Read orders belonging to the authorized user and bound merchant | User only |
@@ -42,10 +46,11 @@ This means:
 Only a confidential, merchant-bound client can use `client_credentials`. The current flow allows only:
 
 ```text filename="Allowed scopes"
-merchant.profile.read products.read
+merchant.profile.read products.read products.write inventory.write
+merchant_payments.create merchant_payments.read
 ```
 
-Order and payment operations require a real user authorization.
+Catalog-order `orders.*` and `payments.*` still require user authorization. `merchant_payments.*` is for server-side collection independent of buyer accounts; checkout sign-in depends on merchant policy and channel. See [General merchant collection](/en/developer/merchant-payments/). Request only needed, approved scopes from the supported set above.
 
 ```bash filename="Client Credentials"
 curl -X POST "{TOKEN_ENDPOINT}" \

@@ -20,6 +20,10 @@
 
 不能因为 USD 通常显示两位小数，就把 `125000000` 除以 100。
 
+## 通用收款使用币种最小单位
+
+`/openapi/v1/merchant-payments` 的 `amount_minor` 按币种精度换算：USD 10.50 提交 1050（精度 2），TDC 10.50 提交 1050000000（精度 8）。不要复用商品订单的统一八位缩放。其 `status` 为字符串，`expires_at` 和 `occurred_at` 为 RFC 3339 时间；列表返回 `items`，且必须按外部引用或单号过滤。详见 [通用商户收款](/zh/developer/merchant-payments/)。
+
 ## 商品金额与支付金额
 
 | 字段组 | 说明 |

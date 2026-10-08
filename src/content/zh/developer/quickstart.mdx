@@ -32,10 +32,11 @@
 | --- | --- | --- |
 | 用户登录、读取用户身份 | `authorization_code` + PKCE | 公共或机密客户端 |
 | 用户下单、查询订单、发起支付、查询支付状态 | `authorization_code` + PKCE | 公共或机密客户端，已绑定商户 |
+| 外部业务订单按金额收款与对账 | `client_credentials` | 机密客户端，已绑定商户；`merchant_payments.create`、`merchant_payments.read` |
 | 服务端读取店铺与商品 | `client_credentials` | 机密客户端，已绑定商户 |
 | 延续用户授权 | `refresh_token` | 使用同一客户端取得的 Refresh Token |
 
-`client_credentials` 仅支持 `merchant.profile.read`、`products.read`，不能代表用户下单或支付。权限名称、可用主体和商户绑定规则见 [权限范围](/zh/developer/scopes/)。
+`client_credentials` 支持已批准的商户资料、商品/库存维护和 `merchant_payments.*` 通用收款能力，但不能替代 `orders.*`、`payments.*` 的用户授权。通用收款的建单、幂等键和 `return_url` 见 [通用商户收款](/zh/developer/merchant-payments/)。权限名称、可用主体和商户绑定规则见 [权限范围](/zh/developer/scopes/)。
 
 ## 鉴权约定
 
@@ -59,7 +60,7 @@ Access Token 的实际权限以令牌响应 `scope` 为准，不能超出客户�
 | 业务写请求 | `Content-Type: application/json` |
 | 成功响应 | 直接返回 JSON 资源或列表，没有统一的 `data` 外层 |
 | 业务编号 | 字符串，保留原值 |
-| 金额 | JSON 整数，统一按 `10^8` 缩放；详见 [数据格式](/zh/developer/data-formats/) |
+| 金额 | 商品订单采用八位定点；通用收款的 `amount_minor` 按币种精度；详见 [数据格式](/zh/developer/data-formats/) |
 | 有效期 | `expires_in` 为持续秒数，支付 `expire_time` 为 Unix 秒时间戳 |
 | 错误处理 | 先检查 HTTP 状态，再解析错误字段；详见 [错误与排查](/zh/developer/troubleshooting/) |
 
@@ -69,5 +70,5 @@ Access Token 的实际权限以令牌响应 `scope` 为准，不能超出客户�
 
 - 未提供标准 OIDC Discovery / JWKS 端点。通用 OIDC SDK 不能仅配置 issuer 后自动完成接入；用户身份可通过 Access Token 调用 `userinfo` 获取。不能直接信任仅解码、未验签的 ID Token。
 - 已签发客户端暂不提供类型、回调地址或权限的自助修改入口；需调整时联系平台处理。
-- OpenAPI 未提供支付渠道发现、结算报价、通用订单列表、取消订单、退款或提现接口。支付渠道编号及可用范围需在接入前与平台确认。
-- 创建订单未提供通用幂等键契约；支付请求可能实际扣款。超时后需先确认业务结果，不能直接重放写请求。
+- 通用收款提供本商户渠道目录和按引用/单号过滤的收款列表。商品订单仍无独立渠道发现、结算报价和通用订单列表；未提供公开取消、退款或提现接口。
+- 商品订单创建未提供通用幂等键契约；通用收款按商户和 `idempotency_key` 去重。支付请求可能实际扣款。超时后需先确认业务结果，不能直接重放写请求。

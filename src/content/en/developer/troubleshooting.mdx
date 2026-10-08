@@ -31,6 +31,12 @@ Refresh tokens rotate. Serialize refreshes for the same account and client, and 
 
 Do not blindly replay order-creation or payment requests after a timeout. Reads can use bounded retries with increasing delays; writes need duplicate-submission protection in your application.
 
+## General merchant collection
+
+`client_credentials_required` means these routes need a merchant server token, not the buyer's user-authorized token. HTTP 400 `invalid_return_url` includes `field: "return_url"` and `error_description`; check HTTPS, length and invalid characters. `payment_conflict` can mean changed parameters, including the destination, for the same key. Retry timeouts with the original key and parameters. For `merchant_fee_funding_unavailable`, check fees, wallet funding and approved credit.
+
+HTTP 202 `provider_result_pending` is not paid. If the buyer is back at checkout but has not returned to the merchant, query `status` and wait for asynchronous confirmation. Only the server creation request supplies the destination; browser parameters cannot override it. The new field also requires platform deployment. See [General merchant collection](/en/developer/merchant-payments/) for fields, statuses and limits.
+
 ## Error envelopes differ
 
 OAuth errors contain `error` and `error_description`. Some business errors also include numeric `code`, `error_details` or `error_uri`. Use HTTP status and field meaning, tolerate unknown fields and avoid branching on one exact localized message.

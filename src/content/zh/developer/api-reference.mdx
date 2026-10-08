@@ -19,8 +19,18 @@ Authorization: Bearer {ACCESS_TOKEN}
 | `GET /openapi/v1/orders/{order_no}` | `orders.read` | 用户 |
 | `POST /openapi/v1/orders/{order_no}/payment` | `payments.create` | 用户 |
 | `GET /openapi/v1/orders/{order_no}/payment` | `payments.read` | 用户 |
+| `GET /openapi/v1/merchant-payment-channels` | `merchant_payments.read` | 仅客户端 |
+| `POST /openapi/v1/merchant-payments` | `merchant_payments.create` | 仅客户端 |
+| `GET /openapi/v1/merchant-payments/{order_no}` | `merchant_payments.read` | 仅客户端 |
+| `GET /openapi/v1/merchant-payments` | `merchant_payments.read` | 仅客户端 |
 
 令牌交换和用户信息的参数、响应见 [OAuth 授权](/zh/developer/authorization-code/)。网站授权页与 API 域名上的内部授权确认接口属于不同调用边界，见 [端点与调用方](/zh/developer/authorization-code/#端点与调用方)。
+
+## 外部业务订单的通用收款
+
+`merchant-payments` 使用商户服务端 Client Credentials，不创建 TDCloud 商品订单，也不要求买家先授权 OAuth。建单提交 `external_reference`、`idempotency_key`、`amount_minor`、`currency`、`payment_no` 和可选 `description`、`return_url`。同键同参数返回同单；改参数返回 409。
+
+`return_url` 为建单时保存的可选 HTTPS 地址，仅服务端确认 `paid` 后自动返回商户。USD 10.50 的 `amount_minor` 是 1050，不能复用下方商品订单的八位定点金额；收款状态使用字符串。完整参数、返回字段、渠道目录、对账过滤和错误码见 [通用商户收款](/zh/developer/merchant-payments/)。
 
 ## 读取商户
 

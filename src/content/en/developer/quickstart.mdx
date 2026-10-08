@@ -8,6 +8,7 @@ Choose the capabilities you need before applying for a client. Platform sign-in 
 | --- | --- | --- |
 | User sign-in | Public or confidential client, Authorization Code + PKCE | `openid profile` |
 | Server-side store and product synchronization | Confidential client, Client Credentials | `merchant.profile.read products.read` |
+| Collect payment for your own business orders | Merchant-bound confidential client, Client Credentials | `merchant_payments.create merchant_payments.read` |
 | Users purchase through your application | User authorization with a merchant binding | Product, order and payment scopes as needed |
 
 Browser, desktop and mobile applications cannot hide a fixed Secret and should use a public client. Applications with a secure backend can use a confidential client. See [Clients and secrets](/en/developer/oauth-client/).
@@ -29,6 +30,8 @@ Prepare:
 | `CLIENT_SECRET` | Confidential clients only; store on the server |
 
 Obtain these service URLs from Developer Center → Application configuration → Service URLs after approval. Addresses are assigned per client. Preserve the complete base path and use the supplied OAuth endpoints without deriving them from another address. Keep URLs in application configuration and update them when the platform notifies you of a change. Documentation and callback URLs are not service endpoints.
+
+For external-order collection, follow [General merchant collection](/en/developer/merchant-payments/) directly: obtain a server token, discover channels, create with an idempotency key and optional `return_url`, then reconcile confirmed payment. Buyer OAuth identity authorization is not a prerequisite; TDC still requires TDCloud sign-in at checkout.
 
 ## 3. Establish identity authorization first
 
