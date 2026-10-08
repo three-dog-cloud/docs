@@ -56,7 +56,7 @@ Availability depends on merchant ownership, enablement and debug grants. Initial
 | `currency` | string | Yes | Enabled, channel-supported currency; use its uppercase code |
 | `payment_no` | string | Yes | An available identifier from the preceding directory |
 | `description` | string | No | At most 500 bytes, trimmed |
-| `expires_in` | integer | No | Fixed payment lifetime in seconds, 60–86400; defaults to 1800 (30 minutes) |
+| `expires_in` | integer | No | Fixed payment lifetime in seconds, 60–7200; defaults to 1800 (30 minutes) |
 | `return_url` | string | No | Absolute HTTPS destination after confirmed payment, at most 2048 bytes; see below |
 
 ### Amount examples
@@ -105,8 +105,8 @@ After a timeout, retry with the original key and parameters. A missing response 
 
 ### Payment timeout
 
-- `expires_in` is a creation-time lifetime in seconds: 60–86400 (1 minute–24 hours), default 1800 (30 minutes). Explicit `1800` equals omission; changing to another lifetime for the same key returns `409 payment_conflict`.
-- At the fixed `expires_at`, checkout starts are rejected with `410 payment_expired`. Same-key retries return the original order and deadline. Queries and reconciliation remain available.
+- `expires_in` is a creation-time lifetime in seconds: 60–7200 (1 minute–2 hours), default 1800 (30 minutes). Explicit `1800` equals omission; changing to another lifetime for the same key returns `409 payment_conflict`.
+- At the fixed `expires_at`, checkout starts are rejected with `410 payment_expired`. Same-key retries return the original order and deadline. The cap applies to new orders; historical orders retain their original deadline. Queries and reconciliation remain available.
 - Orders without a provider attempt become `expired` when read, listed, opened at checkout or swept by the worker. Started attempts first become `review`; the worker checks payment, closes unpaid open Stripe sessions, and releases reserved fees and credit exactly once only after verifying provider expiry.
 - Asynchronous payments, provider lookup/closure failures and unknown session-creation responses remain `review`. Never treat uncertainty as non-payment. Verified late payments become `paid` after wallet/accounting confirmation. Unknown responses without a session identifier need administrator reconciliation in Stripe using the TDCloud order number.
 - The worker sweeps every minute and retries provider failures. Stripe requires at least 30 minutes for a session, so its deadline can be later than the collection deadline; TDCloud actively closes the session without extending the collection order. Local expiry does not guarantee simultaneous closure of an external provider link. See [Stripe session expiry](https://docs.stripe.com/api/checkout/sessions/create#checkout_session_create-expires_at) and [expiring a session](https://docs.stripe.com/api/checkout/sessions/expire).
@@ -204,7 +204,7 @@ Errors include at least a string `error`. HTTP `202 provider_result_pending` is 
 | HTTP | `error` | Action |
 | --- | --- | --- |
 | 400 | `invalid_request` | Check parameters, amount and list filters |
-| 400 | `invalid_expires_in` | Use an integer lifetime of 60–86400 seconds; returns `error_description` and `field: "expires_in"` |
+| 400 | `invalid_expires_in` | Use an integer lifetime of 60–7200 seconds; returns `error_description` and `field: "expires_in"` |
 | 400 | `invalid_return_url` | Fix the HTTPS destination; also returns `error_description` and `field: "return_url"` |
 | 401 | `invalid_token` | Obtain a valid OAuth token |
 | 403 | `insufficient_scope`, `client_credentials_required` | Check approved scopes and token actor |

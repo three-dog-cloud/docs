@@ -56,7 +56,7 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | `currency` | string | 是 | 已启用且渠道支持的币种，使用大写代码 |
 | `payment_no` | string | 是 | 上一步取得的可用渠道编号 |
 | `description` | string | 否 | 最长 500 字节，去除首尾空白 |
-| `expires_in` | integer | 否 | 支付有效秒数，60～86400；默认 1800（30 分钟），建单后固定 |
+| `expires_in` | integer | 否 | 支付有效秒数，60～7200；默认 1800（30 分钟），建单后固定 |
 | `return_url` | string | 否 | 支付确认后返回的完整 HTTPS 地址，最长 2048 字节；规则见下一节 |
 
 ### 金额示例
@@ -105,8 +105,8 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 ### 支付超时
 
-- `expires_in` 是从建单成功开始计算的有效秒数。省略默认 30 分钟，也可传入 60～86400 秒（1 分钟～24 小时）。显式 `1800` 与省略等价；同键改为其他有效期返回 `409 payment_conflict`。
-- 到达固定 `expires_at` 后禁止继续发起支付，收银台发起接口返回 `410 payment_expired`。同键重试仍返回原单及原期限，不能续期。服务端查询及对账仍可用。
+- `expires_in` 是从建单成功开始计算的有效秒数。省略默认 30 分钟，也可传入 60～7200 秒（1 分钟～2 小时）。显式 `1800` 与省略等价；同键改为其他有效期返回 `409 payment_conflict`。
+- 到达固定 `expires_at` 后禁止继续发起支付，收银台发起接口返回 `410 payment_expired`。同键重试仍返回原单及原期限，不能续期。新上限用于新建订单，历史订单保留原期限。服务端查询及对账仍可用。
 - 尚未发起渠道会话的单在查询、列表、收银台读取或后台巡检时转为 `expired`。已发起会话的单先进入 `review`，后台核对付款并关闭尚未支付的 Stripe 会话；确认渠道已过期后才释放预占手续费和授信，且只释放一次。
 - 异步付款未决、渠道查单/关单失败或会话创建响应不明继续保留 `review`，不能直接认定失败或重复扣费。真实付款确认后，即使回调晚到，也会在钱包及账务完成后返回 `paid`；无法获取会话号的异常需管理员按 TDCloud 单号到 Stripe 核对。
 - 后台每分钟巡检，并在渠道异常时重试。Stripe 会话自身的最短期限为 30 分钟，可能晚于收款单期限；TDCloud 会主动关单，不会用渠道期限延长收款单。不能将本地到期理解为渠道地址必定在同一瞬间关闭。[Stripe 会话到期规则](https://docs.stripe.com/api/checkout/sessions/create#checkout_session_create-expires_at)、[主动关闭会话](https://docs.stripe.com/api/checkout/sessions/expire)。
@@ -204,7 +204,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | HTTP | `error` | 处理 |
 | --- | --- | --- |
 | 400 | `invalid_request` | 核对参数、金额及列表过滤条件 |
-| 400 | `invalid_expires_in` | 修正有效期为 60～86400 秒的整数；返回 `error_description` 和 `field: "expires_in"` |
+| 400 | `invalid_expires_in` | 修正有效期为 60～7200 秒的整数；返回 `error_description` 和 `field: "expires_in"` |
 | 400 | `invalid_return_url` | 修正 HTTPS 地址；同时返回 `error_description`、`field: "return_url"` |
 | 401 | `invalid_token` | 重新获取有效 OAuth 令牌 |
 | 403 | `insufficient_scope`、`client_credentials_required` | 核对批准权限及令牌主体 |
