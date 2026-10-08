@@ -67,8 +67,10 @@ These routes require a merchant server's Client Credentials token. They do not c
 | `POST` | `/openapi/v1/merchant-payments` | `merchant_payments.create` | Create with amount, external reference and idempotency key |
 | `GET` | `/openapi/v1/merchant-payments/{order_no}` | `merchant_payments.read` | Query this merchant's collection |
 | `GET` | `/openapi/v1/merchant-payments` | `merchant_payments.read` | Filter by external reference or order number |
+| `GET` | `/openapi/v1/merchant-payments/{order_no}/notifications` | `merchant_payments.read` | Read delivery records |
+| `POST` | `/openapi/v1/merchant-payments/{order_no}/notifications/{event_id}/retry` | `merchant_payments.create` | Replay an exhausted notification |
 
-Creation accepts `external_reference`, `idempotency_key`, `amount_minor`, `currency`, `payment_no`, optional `description` and optional `return_url`. The stored HTTPS destination is opened only after server-confirmed `paid`. USD 10.50 uses `amount_minor: 1050`; this is not the catalog-order eight-decimal scale. Collection statuses are strings. See [General merchant collection](/en/developer/merchant-payments/) for complete parameters, response fields, filtering, errors and retries.
+Creation accepts `external_reference`, `idempotency_key`, `amount_minor`, `currency`, `payment_no`, optional `description`, `expires_in`, `return_url`, and paired `notify_url` / `notify_secret`. The stored HTTPS destination is opened only after server-confirmed `paid`. USD 10.50 uses `amount_minor: 1050`; this is not the catalog-order eight-decimal scale. Collection statuses are strings. See [General merchant collection](/en/developer/merchant-payments/) for complete parameters, response fields, filtering, errors and retries.
 
 ## Integration constraints
 

@@ -57,6 +57,8 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | `payment_no` | string | 是 | 上一步取得的可用渠道编号 |
 | `description` | string | 否 | 最长 500 字节，去除首尾空白 |
 | `expires_in` | integer | 否 | 支付有效秒数，60～7200；默认 1800（30 分钟），建单后固定 |
+| `notify_url` | string | 否 | 服务端通知的公网 HTTPS 地址，须与 `notify_secret` 同时传入；见状态通知一节 |
+| `notify_secret` | string | 否 | 独立随机签名密钥，32～256 字节，不含空白 |
 | `return_url` | string | 否 | 支付确认后返回的完整 HTTPS 地址，最长 2048 字节；规则见下一节 |
 
 ### 金额示例
@@ -129,7 +131,93 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 原地址的路径、查询参数和片段保留；TDCloud 不自动添加 Token、单号或支付状态。商户应在原地址中携带自己的业务引用，并将回跳仅作为触发查单的入口。浏览器付款成功页、回跳参数或渠道会话创建成功都不能作为交付依据。
 
-## 5. 服务端查单与对账
+## 5. 服务端状态通知
+
+建单时同时传入 `notify_url` 和 `notify_secret`，TDCloud 会向商户服务端发送 HTTPS POST。`notify_url` 仅允许公网 HTTPS，最长 2048 字节，不允许账号密码、片段、内网地址或重定向。`notify_secret` 使用商户生成的独立随机密钥，32～256 字节，不含空白；不要使用 OAuth Client Secret。地址和密钥参与建单幂等校验，创建后不能修改。
+
+```json
+{
+  "external_reference": "merchant-order-123",
+  "idempotency_key": "merchant-order-123-attempt-1",
+  "amount_minor": 1050,
+  "currency": "USD",
+  "payment_no": "CHANNEL_NO",
+  "notify_url": "https://merchant.example/hooks/tdcloud",
+  "notify_secret": "MERCHANT_GENERATED_RANDOM_SECRET_AT_LEAST_32_BYTES"
+}
+```
+
+两个参数均省略时不发送通知，继续使用服务端查单。密钥不会出现在建单、查单、收银台或投递记录响应中。
+
+### 通知内容与验签
+
+每次状态变化发送 `merchant_payment.status_changed`，包含创建后的 `pending`、支付确认后的 `paid`、`review`、`expired`、`refunded` 和 `chargeback`。支付和账务确认、订单状态与通知事件在同一事务中保存；投递失败不撤销已确认支付。
+
+```json
+{
+  "id": "MN_NOTIFICATION_EXAMPLE",
+  "type": "merchant_payment.status_changed",
+  "api_version": 1,
+  "created_at": "2026-10-08T07:45:00Z",
+  "data": {
+    "order_no": "MP_EXAMPLE",
+    "external_reference": "merchant-order-123",
+    "payment_no": "CHANNEL_NO",
+    "amount_minor": 1050,
+    "currency": "USD",
+    "currency_decimals": 2,
+    "status": "paid",
+    "status_version": 2,
+    "test_mode": false,
+    "expires_at": "2026-10-08T08:00:00Z",
+    "event_id": "MPE_PAYMENT_EXAMPLE",
+    "provider_trade_no": "cs_EXAMPLE",
+    "occurred_at": "2026-10-08T07:45:00Z"
+  }
+}
+```
+
+`data` 是该状态发生时的收款单快照，不含收银台 Token、返回地址或通知密钥。`id` 是通知事件号；`data.event_id` 是确认支付后的稳定支付事件号，两者用途不同。`created_at` 是通知生成时间，支付时间使用 `data.occurred_at`。
+
+| 请求头 | 含义 |
+| --- | --- |
+| `X-TDCloud-Event-ID` | 与请求体 `id` 一致的通知事件号 |
+| `X-TDCloud-Timestamp` | 本次投递的 Unix 秒时间戳 |
+| `X-TDCloud-Signature` | `sha256=` 加 HMAC-SHA256 的小写十六进制结果 |
+
+签名内容为 `时间戳 + "." + 原始 HTTP 请求体字节`，密钥为建单的 `notify_secret`。使用常量时间比较签名，并拒绝与当前时间相差超过 5 分钟的时间戳；服务端时钟须同步。验签前不要重新序列化 JSON。例如 Python：
+
+```python
+import hashlib
+import hmac
+import time
+
+# raw_body is the untouched HTTP request body; secret is stored server-side.
+timestamp = request.headers["X-TDCloud-Timestamp"]
+provided = request.headers["X-TDCloud-Signature"]
+expected = "sha256=" + hmac.new(
+    secret.encode(), timestamp.encode() + b"." + raw_body, hashlib.sha256
+).hexdigest()
+if abs(time.time() - int(timestamp)) > 300 or not hmac.compare_digest(expected, provided):
+    raise ValueError("Invalid TDCloud notification")
+```
+
+验签后核对订单引用、金额、币种和 `test_mode`，按通知 `id` 去重。通知可能重复或乱序；同单 `status_version` 单调递增，低版本不能覆盖高版本。查单也返回 `status_version`。支付记账继续按 `data.event_id` 幂等；只有 `paid` 表示确认支付，`review` 和 `expired` 不能作为已支付凭证。退款/拒付保留原支付事件号。
+
+### 确认、重试与补发
+
+商户应先可靠保存通知，再返回 HTTP `2xx`；响应体不参与确认。单次投递最多等待 8 秒。超时、连接失败、`3xx`、`4xx` 和 `5xx` 均重试，不跟随重定向。首次异步投递后，失败间隔依次为 1 分钟、5 分钟、15 分钟、30 分钟、1 小时、2 小时、4 小时、6 小时、8 小时，共最多 10 次自动尝试。工作进程中断后可恢复；通知事件号与请求体保持一致，每次重签时间戳。
+
+| 方法与路径 | 权限 | 用途 |
+| --- | --- | --- |
+| `GET /openapi/v1/merchant-payments/{order_no}/notifications` | `merchant_payments.read` | 本商户订单的投递记录，HTTP `200` 返回 `{"items": [...]}` |
+| `POST /openapi/v1/merchant-payments/{order_no}/notifications/{event_id}/retry` | `merchant_payments.create` | 将自动重试耗尽的通知重新排队，HTTP `202` 返回 `{"accepted": true}` |
+
+记录按状态版本倒序返回，`limit` 默认 20，允许 1～100，越界回退 20。字段包括通知 `event_id`、`status_version`、`event` 快照、`delivery_status`（`pending` / `delivered` / `failed`）、累计 `attempts`、`next_attempt_at`、`last_http_status`、`last_error` 和最近 20 条 `delivery_attempts`。尝试记录没有 `finished_at` 表示进程中断或仍在投递。补发不生成新事件、不改订单状态；已送达或仍待投递的事件重复请求不会额外排队。重试接口按客户端每分钟最多 30 次。
+
+通知与查单并用：未收到通知时查询原单并定期对账；通知投递耗尽不代表支付失败。
+
+## 6. 服务端查单与对账
 
 | 方法与路径 | 权限 | 用途 |
 | --- | --- | --- |
@@ -153,6 +241,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `status` | string | 收款单状态，见下表 |
+| `status_version` | integer | 同单状态版本，防止旧通知覆盖新状态；历史未变更订单可为 0 |
 | `event_id` | string，可省略 | 确认支付后的稳定、唯一支付事件号；用于商户幂等记账 |
 | `provider_trade_no` | string，可省略 | 渠道交易号；TDC 为 `TDC:{order_no}` |
 | `occurred_at` | string 或 null | 确认支付时间，RFC 3339，保留响应中的时区 |
@@ -176,7 +265,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 }
 ```
 
-`expires_at` 同样为 RFC 3339 时间，不是 Unix 秒。单号、事件号和渠道交易号按字符串保存。平台不提供本能力的商户 Webhook 通知契约，应做有间隔、有超时上限的服务端查单和定期对账。
+`expires_at` 同样为 RFC 3339 时间，不是 Unix 秒。单号、事件号和渠道交易号按字符串保存。服务端状态通知可触发商户处理，但仍应保留有间隔、有超时上限的查单和定期对账。
 
 | 状态 | 含义与处理 |
 | --- | --- |
@@ -189,7 +278,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 不要套用商品订单接口的数字 `status`。当前未定义通用 `failed`、`cancelled` 或公开取消接口；未来未知状态保留为待核对，不按支付成功处理。
 
-## 6. 结算、手续费与调试
+## 7. 结算、手续费与调试
 
 平台渠道按建单汇率转为 TDC 记入商户钱包；平台按商户配置 0–30 天冻结，0 天可实时使用。商户自有渠道由商户自行收款，TDCloud 不重复入账；平台手续费在建单时检查资金，在获取支付链接前再次检查并预占，优先使用可用 TDC，再使用已获批授信。无法筹足则拒绝交易。
 
@@ -197,12 +286,15 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 `test_mode: true` 仅表示管理员指定分配的 Stripe 测试渠道。消费者不发生真实 Stripe 扣款，但 TDCloud 正常订单、账务、钱包 TDC 和冻结流程仍执行。测试权限不由管理员身份自动获得，也不代表可随意混用生产业务；测试账号、商品和交付由管理员维护。
 
-## 7. 错误、限流与接入检查
+## 8. 错误、限流与接入检查
 
 错误至少包含字符串 `error`。HTTP `202` 的 `provider_result_pending` 也不是支付成功。按 HTTP 状态和错误码分支，不依赖中文文案。
 
 | HTTP | `error` | 处理 |
 | --- | --- | --- |
+| 400 | `invalid_notify_url` | 使用公网 HTTPS 通知地址，不能包含账号密码、片段或内网目标 |
+| 400 | `invalid_notify_secret` | 通知地址须配独立随机密钥，32～256 字节，不含空白 |
+| 503 | `notification_unavailable` | 稍后用原幂等键重试 |
 | 400 | `invalid_request` | 核对参数、金额及列表过滤条件 |
 | 400 | `invalid_expires_in` | 修正有效期为 60～7200 秒的整数；返回 `error_description` 和 `field: "expires_in"` |
 | 400 | `invalid_return_url` | 修正 HTTPS 地址；同时返回 `error_description`、`field: "return_url"` |

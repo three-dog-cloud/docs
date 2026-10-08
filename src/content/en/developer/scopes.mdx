@@ -21,8 +21,8 @@ Email access requires approved `email` capability and user consent: request `ope
 | `merchant.profile.read` | Read bound merchant public profile | User or Client Credentials |
 | `products.write` | Create/update bound-merchant external API products | Client Credentials only |
 | `inventory.write` | Update bound-merchant virtual inventory | Client Credentials only |
-| `merchant_payments.create` | Create an amount-based collection for this merchant | Client Credentials only |
-| `merchant_payments.read` | Read this merchant’s collections and available channels | Client Credentials only |
+| `merchant_payments.create` | Create an amount-based collection and replay failed notifications | Client Credentials only |
+| `merchant_payments.read` | Read this merchant’s collections, channels and notification deliveries | Client Credentials only |
 | `products.read` | Read enabled products for the bound merchant | User or Client Credentials |
 | `orders.create` | Create an order for the authorized user | User only |
 | `orders.read` | Read orders belonging to the authorized user and bound merchant | User only |
