@@ -8,7 +8,12 @@ Products can use enabled platform TDC or online-payment channels, subject to the
 
 In **Merchant Center → Payment and settlement**, configure guest purchases and inspect the platform-assigned hold, guarantee deposit and fee credit. TDC always requires buyer sign-in, even if guest purchases are enabled.
 
-Merchant-owned Stripe requires a platform-configured fee rate. Create a disabled channel, obtain its dedicated Webhook URL, configure Stripe callbacks, then supply the signing secret and enable it. Available TDC or approved credit must fund the platform fee; insufficient funding or unavailable credit rejects the transaction. Merchant-owned channels receive funds directly without duplicate TDCloud wallet revenue.
+Merchant-owned Stripe requires a platform-configured fee rate. Setup has two steps:
+
+1. Save your Stripe account details to obtain the payment notification URL.
+2. Add that URL to Stripe Webhook settings with `checkout.session.completed` and `checkout.session.async_payment_succeeded`. Copy its Signing Secret into the merchant page and save to enable payments.
+
+Buyers cannot use the channel until setup is complete. Available TDC or approved credit must fund the platform fee; insufficient funding or unavailable credit rejects the transaction. Merchant-owned channels receive funds directly without duplicate TDCloud wallet revenue.
 
 ## Buyer charge versus merchant revenue
 
