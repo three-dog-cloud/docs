@@ -57,6 +57,7 @@ Availability depends on merchant ownership, enablement and debug grants. Initial
 | `payment_no` | string | Yes | An available identifier from the preceding directory |
 | `description` | string | No | At most 500 bytes, trimmed |
 | `expires_in` | integer | No | Fixed payment lifetime in seconds, 60–7200; defaults to 1800 (30 minutes) |
+| `notify_enabled` | boolean | No | Omit to use explicit parameters or merchant defaults; `false` disables this order and cannot be combined with URL/secret; `true` requires a valid notification configuration |
 | `notify_url` | string | No | Public HTTPS notification endpoint; supply with `notify_secret`, see status notifications |
 | `notify_secret` | string | No | Independent random signing secret, 32–256 bytes without whitespace |
 | `return_url` | string | No | Absolute HTTPS destination after confirmed payment, at most 2048 bytes; see below |
@@ -133,6 +134,23 @@ The original path, query and fragment are preserved. TDCloud does not append a t
 
 ## 5. Server-side status notifications
 
+Notifications are optional and off by default. Server-side lookup remains available. Browser return URLs and server notifications are independent; neither is required.
+
+### Merchant defaults
+
+Use **Merchant Center → Payment and settlement → Collection status notifications** to configure a public HTTPS endpoint. Saving an endpoint generates a separate signing secret, shown only once. Store it in your receiver, implement verification, then enable default notifications. Reading settings never reveals the secret; rotate it if lost.
+
+| Creation parameters | Notification behavior |
+| --- | --- |
+| No notification parameters | Use enabled merchant defaults; otherwise do not send |
+| `notify_enabled: false` | Disable this order even if defaults are enabled; do not also supply a URL or secret |
+| `notify_enabled: true` | Use an explicit URL/secret pair or enabled merchant defaults; reject creation if neither is available |
+| Paired `notify_url` / `notify_secret` | Override merchant defaults with the supplied destination and key |
+
+The effective URL and key are fixed at creation. Changing, disabling or rotating merchant defaults affects new orders only. Existing orders and replays retain their original configuration; keep old receiver keys until historical notifications finish. Retrying an existing idempotency key never rereads defaults or changes the order.
+
+### Per-order configuration
+
 Supply both `notify_url` and `notify_secret` at creation to receive HTTPS POST notifications. The endpoint must be public HTTPS, at most 2048 bytes, without credentials, fragments, private-network targets or redirects. Generate an independent random signing secret of 32–256 bytes without whitespace; do not use the OAuth Client Secret. Both fields participate in idempotency and cannot be changed after creation.
 
 ```json
@@ -147,7 +165,7 @@ Supply both `notify_url` and `notify_secret` at creation to receive HTTPS POST n
 }
 ```
 
-Omit both fields to use server-side queries without notifications. The secret never appears in creation, query, checkout or delivery-record responses.
+If merchant defaults are disabled, omitting both fields sends no notifications. If defaults are enabled, use `notify_enabled: false` to disable notifications for this order. The secret never appears in creation, query, checkout or delivery-record responses.
 
 ### Payload and signature verification
 
@@ -185,7 +203,7 @@ Each status change emits `merchant_payment.status_changed`, including initial `p
 | `X-TDCloud-Timestamp` | Unix seconds for this delivery attempt |
 | `X-TDCloud-Signature` | `sha256=` followed by the lowercase hexadecimal HMAC-SHA256 digest |
 
-Sign `timestamp + "." + raw HTTP request body bytes` using the creation-time `notify_secret`. Compare signatures in constant time and reject timestamps more than 5 minutes from the current time. Synchronize server clocks and do not reserialize JSON before verification. Python example:
+Sign `timestamp + "." + raw HTTP request body bytes` using the signing key effective at creation (the merchant default key or explicit `notify_secret`). Compare signatures in constant time and reject timestamps more than 5 minutes from the current time. Synchronize server clocks and do not reserialize JSON before verification. Python example:
 
 ```python
 import hashlib
@@ -207,6 +225,8 @@ After verification, match the reference, amount, currency and `test_mode`, and d
 ### Acknowledgment, retries and replay
 
 Durably store the notification before returning HTTP `2xx`; the response body is ignored. Each attempt waits at most 8 seconds. Timeouts, connection failures, `3xx`, `4xx` and `5xx` retry, without following redirects. After the initial asynchronous attempt, retry delays are 1 minute, 5 minutes, 15 minutes, 30 minutes, 1 hour, 2 hours, 4 hours, 6 hours and 8 hours: at most 10 automatic attempts. Interrupted workers can recover. Retries retain the identifier and body, with a fresh signed timestamp.
+
+Merchants can also enter a collection order number in **Merchant Center → Payment and settlement → Collection notification records** to view delivery results and recent attempts, and replay an exhausted event. The page only accesses the current merchant’s orders.
 
 | Method and path | Scope | Purpose |
 | --- | --- | --- |
@@ -292,6 +312,7 @@ Errors include at least a string `error`. HTTP `202 provider_result_pending` is 
 
 | HTTP | `error` | Action |
 | --- | --- | --- |
+| 400 | `invalid_notify_config` | Enabling an order requires a URL/secret pair or enabled merchant defaults; disabling cannot include a URL or secret |
 | 400 | `invalid_notify_url` | Use a public HTTPS endpoint without credentials, fragments or private targets |
 | 400 | `invalid_notify_secret` | Supply an independent random 32–256-byte secret without whitespace |
 | 503 | `notification_unavailable` | Retry later with the original idempotency key |

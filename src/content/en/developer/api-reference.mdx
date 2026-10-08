@@ -70,7 +70,7 @@ These routes require a merchant server's Client Credentials token. They do not c
 | `GET` | `/openapi/v1/merchant-payments/{order_no}/notifications` | `merchant_payments.read` | Read delivery records |
 | `POST` | `/openapi/v1/merchant-payments/{order_no}/notifications/{event_id}/retry` | `merchant_payments.create` | Replay an exhausted notification |
 
-Creation accepts `external_reference`, `idempotency_key`, `amount_minor`, `currency`, `payment_no`, optional `description`, `expires_in`, `return_url`, and paired `notify_url` / `notify_secret`. The stored HTTPS destination is opened only after server-confirmed `paid`. USD 10.50 uses `amount_minor: 1050`; this is not the catalog-order eight-decimal scale. Collection statuses are strings. See [General merchant collection](/en/developer/merchant-payments/) for complete parameters, response fields, filtering, errors and retries.
+Creation accepts `external_reference`, `idempotency_key`, `amount_minor`, `currency`, `payment_no`, optional `description`, `expires_in`, `return_url`, optional `notify_enabled`, and paired `notify_url` / `notify_secret`. Merchants can enable default notifications in Payment and settlement; `notify_enabled: false` disables them for one order, and changing defaults never changes existing orders. The stored HTTPS destination is opened only after server-confirmed `paid`. USD 10.50 uses `amount_minor: 1050`; this is not the catalog-order eight-decimal scale. Collection statuses are strings. See [General merchant collection](/en/developer/merchant-payments/) for complete parameters, response fields, filtering, errors and retries.
 
 ## Integration constraints
 

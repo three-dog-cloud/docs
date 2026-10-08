@@ -57,6 +57,7 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | `payment_no` | string | 是 | 上一步取得的可用渠道编号 |
 | `description` | string | 否 | 最长 500 字节，去除首尾空白 |
 | `expires_in` | integer | 否 | 支付有效秒数，60～7200；默认 1800（30 分钟），建单后固定 |
+| `notify_enabled` | boolean | 否 | 省略时使用显式通知参数或商户默认配置；`false` 关闭本单通知，不能同时传通知地址/密钥；`true` 要求存在有效通知配置 |
 | `notify_url` | string | 否 | 服务端通知的公网 HTTPS 地址，须与 `notify_secret` 同时传入；见状态通知一节 |
 | `notify_secret` | string | 否 | 独立随机签名密钥，32～256 字节，不含空白 |
 | `return_url` | string | 否 | 支付确认后返回的完整 HTTPS 地址，最长 2048 字节；规则见下一节 |
@@ -133,6 +134,23 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 ## 5. 服务端状态通知
 
+状态通知是可选能力。默认不开启，可通过服务端查单确认结果。浏览器返回地址和服务端通知互相独立，均不必填写。
+
+### 商户默认配置
+
+在 **商户中心 → 支付与结算 → 收款状态通知** 配置公网 HTTPS 通知地址。保存地址后平台生成独立签名密钥，仅本次显示；将其保存到商户接收服务，完成验签后再启用默认通知。读取设置不会返回密钥，遗失时可更换。
+
+| 建单方式 | 通知行为 |
+| --- | --- |
+| 不传通知参数 | 商户默认通知启用时使用默认地址与密钥，否则不发送 |
+| `notify_enabled: false` | 关闭本单通知，即使商户已启用默认通知；不要同时传地址或密钥 |
+| `notify_enabled: true` | 使用显式地址和密钥，否则使用已启用的商户默认配置；均不可用则拒绝建单 |
+| 成对传 `notify_url` / `notify_secret` | 覆盖商户默认配置，使用本次提供的地址和密钥 |
+
+生效地址与密钥在建单时固定。更改、关闭默认配置或更换密钥只影响新订单，历史订单及补发继续使用原配置；接收服务需保留旧密钥直到历史通知处理完成。相同幂等键重试不会重新读取默认配置或改变已创建订单。
+
+### 单笔指定通知
+
 建单时同时传入 `notify_url` 和 `notify_secret`，TDCloud 会向商户服务端发送 HTTPS POST。`notify_url` 仅允许公网 HTTPS，最长 2048 字节，不允许账号密码、片段、内网地址或重定向。`notify_secret` 使用商户生成的独立随机密钥，32～256 字节，不含空白；不要使用 OAuth Client Secret。地址和密钥参与建单幂等校验，创建后不能修改。
 
 ```json
@@ -147,7 +165,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 }
 ```
 
-两个参数均省略时不发送通知，继续使用服务端查单。密钥不会出现在建单、查单、收银台或投递记录响应中。
+商户默认通知未启用时，两个参数均省略不发送通知；已启用默认通知时，使用 `notify_enabled: false` 关闭本单通知。密钥不会出现在建单、查单、收银台或投递记录响应中。
 
 ### 通知内容与验签
 
@@ -185,7 +203,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | `X-TDCloud-Timestamp` | 本次投递的 Unix 秒时间戳 |
 | `X-TDCloud-Signature` | `sha256=` 加 HMAC-SHA256 的小写十六进制结果 |
 
-签名内容为 `时间戳 + "." + 原始 HTTP 请求体字节`，密钥为建单的 `notify_secret`。使用常量时间比较签名，并拒绝与当前时间相差超过 5 分钟的时间戳；服务端时钟须同步。验签前不要重新序列化 JSON。例如 Python：
+签名内容为 `时间戳 + "." + 原始 HTTP 请求体字节`，密钥为该单创建时生效的签名密钥（商户默认密钥或显式 `notify_secret`）。使用常量时间比较签名，并拒绝与当前时间相差超过 5 分钟的时间戳；服务端时钟须同步。验签前不要重新序列化 JSON。例如 Python：
 
 ```python
 import hashlib
@@ -207,6 +225,8 @@ if abs(time.time() - int(timestamp)) > 300 or not hmac.compare_digest(expected, 
 ### 确认、重试与补发
 
 商户应先可靠保存通知，再返回 HTTP `2xx`；响应体不参与确认。单次投递最多等待 8 秒。超时、连接失败、`3xx`、`4xx` 和 `5xx` 均重试，不跟随重定向。首次异步投递后，失败间隔依次为 1 分钟、5 分钟、15 分钟、30 分钟、1 小时、2 小时、4 小时、6 小时、8 小时，共最多 10 次自动尝试。工作进程中断后可恢复；通知事件号与请求体保持一致，每次重签时间戳。
+
+商户也可在 **商户中心 → 支付与结算 → 收款通知记录** 输入收款单号查看投递结果和最近明细，自动重试耗尽后点击“补发通知”。页面仅查询当前商户的订单。
 
 | 方法与路径 | 权限 | 用途 |
 | --- | --- | --- |
@@ -292,6 +312,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 | HTTP | `error` | 处理 |
 | --- | --- | --- |
+| 400 | `invalid_notify_config` | 开启单笔通知需提供地址和密钥或启用商户默认通知；关闭单笔通知不能同时传地址或密钥 |
 | 400 | `invalid_notify_url` | 使用公网 HTTPS 通知地址，不能包含账号密码、片段或内网目标 |
 | 400 | `invalid_notify_secret` | 通知地址须配独立随机密钥，32～256 字节，不含空白 |
 | 503 | `notification_unavailable` | 稍后用原幂等键重试 |

@@ -43,8 +43,18 @@ There is no withdrawal or automatic-refund procedure in this guide because the p
 
 ## General collection for external orders
 
-For your own business orders, use [General merchant collection OpenAPI](/en/developer/merchant-payments/) to create by amount without TDCloud catalog products or buyer OAuth authorization. Your server can supply `return_url`; TDCloud returns the buyer after confirmed payment. Your server must still query payment before updating the business order.
+For your own business orders, use [General merchant collection OpenAPI](/en/developer/merchant-payments/) to create by amount without TDCloud catalog products or buyer OAuth authorization. Your server can supply `return_url`; TDCloud returns the buyer after confirmed payment. Your server must query payment or verify a status notification before updating the business order idempotently.
 
 Platform-channel collection settles TDC at the creation-time rate. The platform assigns a 0–30 day hold per merchant; zero is immediately available. Complaints prevent release of that order's frozen sales funds. Confirmed losses use those funds, the guarantee deposit, available balance and outstanding recovery balance in sequence. Nonrefundable fees can make losses exceed frozen funds. Verified refunds and chargebacks retain the original payment event and are recorded by the platform.
 
 Administrator-assigned Stripe test channels do not charge real buyer funds, but normal wallet TDC posting, holds and fulfillment can still run. Only explicitly assigned accounts have debug access; administrators maintain test products and fulfillment. See [General merchant collection](/en/developer/merchant-payments/) for return URL parameters and payment confirmation.
+
+## Optional collection notifications and replay
+
+In **Merchant Center → Payment and settlement**, configure a public HTTPS receiver under **Collection status notifications**. Notifications are off by default; creation and server-side lookup still work. Saving an endpoint generates a separate signing secret, displayed once. Store it on your server, implement verification, then enable default notifications.
+
+New collection orders can inherit these defaults. Creation can instead specify a per-order URL/key pair or disable notifications with `notify_enabled: false`. Changing the endpoint, disabling defaults or rotating the key affects new orders only. Historical notifications and replays keep their creation-time endpoint/key; retain old keys in your receiver.
+
+On the same page, enter a TDCloud collection order number under **Collection notification records** to inspect order status, notification event IDs, cumulative attempts, HTTP results and recent attempt details. Each request waits at most 8 seconds. Each cycle permits 10 attempts (one initial attempt and nine retries with increasing delays). Once exhausted, choose **Replay notification** to requeue the event. History and cumulative counts remain available.
+
+Verify and persist events reliably before returning HTTP 2xx as acknowledgement. Handle repeated events idempotently. Delivery failure does not reverse payment or wallet settlement. See [General merchant collection](/en/developer/merchant-payments/) for signatures, retry intervals and parameters.
