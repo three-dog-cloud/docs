@@ -52,7 +52,16 @@ For your own business orders, use [General merchant collection OpenAPI](/en/deve
 
 Platform-channel collection settles TDC at the creation-time rate. The platform assigns a 0–30 day hold per merchant; zero is immediately available. Complaints prevent release of that order's frozen sales funds. Confirmed losses use those funds, the guarantee deposit, available balance and outstanding recovery balance in sequence. Nonrefundable fees can make losses exceed frozen funds. Verified refunds and chargebacks retain the original payment event and are recorded by the platform.
 
-Administrator-assigned Stripe test channels do not charge real buyer funds, but normal wallet TDC posting, holds and fulfillment can still run. Only explicitly assigned accounts have debug access; administrators maintain test products and fulfillment. See [General merchant collection](/en/developer/merchant-payments/) for return URL parameters and payment confirmation.
+Administrator-assigned Stripe test channels do not charge real buyer funds, but normal wallet TDC posting, holds and fulfillment can still run. Administrators maintain test products and fulfillment. Merchant and paying-user restrictions combine as follows:
+
+| Configuration | Transactions allowed on this test channel |
+| --- | --- |
+| Merchants only | All buyers at the specified merchants |
+| Merchants and paying users | Specified paying users at the specified merchants; both conditions must match |
+| Paying users only | Specified paying users at any merchant |
+| Neither | No debug access |
+
+With multiple identifiers, match any merchant in the merchant list and any user in the user list. A paying-user restriction requires TDCloud sign-in even when guest checkout is enabled. Merchant-only configuration follows the merchant's guest policy. Wallet recharge has no merchant context, so it requires a user-only configuration. Administrator identity does not grant access. These conditions govern the selected test channel; they do not convert other merchant channels into test payments. See [General merchant collection](/en/developer/merchant-payments/) for return URLs and payment confirmation.
 
 ## Optional collection notifications and replay
 

@@ -306,6 +306,10 @@ A complaint first prevents that order's frozen sales funds from being released. 
 
 `test_mode: true` identifies a Stripe test channel explicitly assigned by an administrator. The buyer is not charged real Stripe funds, but normal TDCloud order, accounting, wallet TDC and hold flows still run. Administrator identity alone grants no access. Test accounts, products and fulfillment are maintained by the administrator.
 
+A merchant-only configuration allows all buyers at those merchants on the selected test channel. User-only allows those paying users at any merchant. When both lists are populated, both conditions must match. Empty lists grant no access when neither is populated; multiple IDs match any entry within each list.
+
+Server-side channel discovery and creation have no buyer identity and check merchant eligibility first. Test channels with a paying-user restriction return `login_required: true` in the directory. Successful creation does not authorize arbitrary buyers. Checkout checks the actual TDCloud authenticated account and rechecks before issuing or resuming a provider link; a claimed buyer ID cannot grant debug access. User restrictions require sign-in even if guest checkout is enabled. Previously issued sessions may succeed after revocation; verified receipts continue to settle normally.
+
 ## 8. Errors, limits and integration checks
 
 Errors include at least a string `error`. HTTP `202 provider_result_pending` is not payment success. Branch on HTTP status and error code, not translated text.
