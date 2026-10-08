@@ -2,8 +2,6 @@
 
 An external supplier can receive fulfillment requests for products using the `external_api` supply mode. The platform completes an order only after it receives a signed `delivered` result and persists the delivery. An HTTP 2xx response by itself never means that fulfillment succeeded.
 
-> This capability is implemented in the current source tree but still requires the backend migration, configuration, and frontend/backend production deployment. Do not start live fulfillment until the production product option and callback route are available.
-
 ## Product configuration
 
 A merchant or platform operator selects External API fulfillment and configures:

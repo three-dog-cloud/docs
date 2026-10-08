@@ -56,6 +56,6 @@ After obtaining tokens, call `GET /oauth/userinfo` and use `sub` to link the loc
 
 After verifying sign-in, implement the [product, order and payment flow](/en/developer/commerce/). Follow [data formats](/en/developer/data-formats/) for amounts and [troubleshooting](/en/developer/troubleshooting/) for failures.
 
-## Before release
+## Check your integration
 
-Use your own test accounts to verify consent and denial, invalid state, expired authorization codes, refresh-token rotation and minimum scopes. Commerce also requires checking actual orders, payment, delivery and merchant revenue; a successful token response is not commerce acceptance.
+Use your own test accounts to verify consent and denial, invalid state, expired authorization codes, refresh-token rotation and minimum scopes. Commerce also requires checking actual orders, payment, delivery and merchant revenue; verify the complete purchase flow after obtaining a token.

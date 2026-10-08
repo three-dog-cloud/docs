@@ -1,12 +1,18 @@
 # Changelog
 
+## 2026-10-08
+
+- Added general merchant collection APIs, available payment channel lookup and reconciliation by external order reference.
+- Documented payment return URLs, fixed deadlines, idempotent retries and unresolved payment states.
+- Updated merchant server scopes, amount formats and error codes in both languages.
+
 ## 2026-09-16
 
-- Recorded the independent merchant and platform card-code inventory workspaces merged to the main branches. Inventory is a first-class object associated with a product, with direct creation, strict UTF-8 bulk import, state management and bulk disable. Multi-unit orders reserve and deliver the same number of distinct codes.
-- Recorded the online developer API console merged to the main branches. It can select approved scopes, obtain a user token through the real Authorization Code with PKCE flow, call UserInfo and OpenAPI endpoints, and display real status, headers and response data.
-- Recorded the merged notification-administration fix: the delivered message snapshot is visible, and legacy support-ticket Telegram built-in channels can be disabled or cleaned up without an unsupported-channel conflict.
-- Documented the no-Client-Secret platform debug flow and external API fulfillment confirmation. These improvements currently exist only in the working source trees and have not been committed, migrated or deployed; they are not production releases until the corresponding behavior and entry points exist.
-- Synchronized merchant products, buyer orders, OAuth scopes and API reference while distinguishing source implementation, documentation publication and production deployment.
+- Added merchant and platform card-code inventory guides covering creation, UTF-8 bulk import, state management, bulk disable and multi-unit fulfillment.
+- Added the API console guide covering approved scopes, Authorization Code with PKCE, API calls and response inspection.
+- Updated notification administration guidance for delivered message snapshots and legacy support-ticket Telegram channels.
+- Documented platform debug authorization credentials, external API fulfillment confirmation and product configuration.
+- Updated merchant products, buyer orders, OAuth scopes and API reference.
 
 ## 2026-09-03
 

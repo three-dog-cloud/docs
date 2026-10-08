@@ -35,7 +35,7 @@ Refresh Token 会轮换。对同一账户和客户端串行刷新，并原子保
 
 `client_credentials_required` 表示本接口要求商户服务端令牌，不能使用买家的用户授权令牌。`invalid_return_url` 返回 HTTP 400，附 `field: "return_url"` 和中文 `error_description`；检查 HTTPS、长度和非法字符。`payment_conflict` 可能是同键参数（包括返回地址）变化；超时重试须使用原键及原参数。`merchant_fee_funding_unavailable` 需核对费率、钱包和已授权额度。
 
-`provider_result_pending` 即使返回 HTTP 202 也不是成功付款。买家已返回收银台但尚未回到商户时，先查 `status`；异步未决须等待核验。返回地址仅由建单服务端提供，浏览器参数不能覆盖；新字段还需平台完成相应部署。所有字段、状态与限流见 [通用商户收款](/zh/developer/merchant-payments/)。
+`provider_result_pending` 即使返回 HTTP 202 也不是成功付款。买家已返回收银台但尚未回到商户时，先查 `status`；异步未决须等待核验。返回地址仅由建单服务端提供，浏览器参数不能覆盖。所有字段、状态与限流见 [通用商户收款](/zh/developer/merchant-payments/)。
 
 `invalid_expires_in` 表示有效期须为 60～86400 秒的整数，省略时默认 30 分钟。支付期限固定，不能通过刷新或幂等重试延长。`410 payment_expired` 只禁止继续发起支付，不禁止查询；`review` 表示到期后结果仍待核对，应保留原单继续对账，不要直接换键重建。
 

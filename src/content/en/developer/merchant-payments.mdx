@@ -2,8 +2,6 @@
 
 When your system owns its orders, subscriptions and fulfillment, your merchant server can create a TDCloud collection order for a dynamic amount and send the buyer to its checkout. No TDCloud catalog product is required. TDCloud confirms payment and settlement; your system updates its own business orders and entitlements.
 
-This contract follows backend `8ef14ff` and frontend `8b81357`. Return URLs require the platform's `0048` migration. Fixed deadlines and closure reconciliation require this backend/frontend deployment, with no additional migration. Real Stripe return-flow and expiry-closure acceptance remain outstanding. Confirm that your target environment is updated. Publishing documentation does not enable the business environment.
-
 ## 1. Prepare merchant server credentials
 
 Use a **confidential client** bound to your active merchant, with approved `merchant_payments.create` and `merchant_payments.read` scopes. Existing applications do not gain these scopes automatically; request a platform scope adjustment. All OpenAPI routes on this page require a `client_credentials` token, not a user-authorized token. Do not submit a buyer ID or merchant ID.
@@ -199,7 +197,7 @@ A complaint first prevents that order's frozen sales funds from being released. 
 
 `test_mode: true` identifies a Stripe test channel explicitly assigned by an administrator. The buyer is not charged real Stripe funds, but normal TDCloud order, accounting, wallet TDC and hold flows still run. Administrator identity alone grants no access. Test accounts, products and fulfillment are maintained by the administrator.
 
-## 7. Errors, limits and acceptance
+## 7. Errors, limits and integration checks
 
 Errors include at least a string `error`. HTTP `202 provider_result_pending` is not payment success. Branch on HTTP status and error code, not translated text.
 
@@ -226,4 +224,4 @@ Errors include at least a string `error`. HTTP `202 provider_result_pending` is 
 
 Creation allows 60 requests per client per minute. Detail, filtered list and channel directory share 300 requests per client per minute. Checkout limits by IP are 180 reads and 30 starts per minute.
 
-Verify dynamic amounts, the return page, identical retries and conflicting parameters, cross-merchant rejection, guest policy, TDC login, asynchronous/expiry races, stable event deduplication, one wallet credit and refund/chargeback handling. TDCloud verifies Stripe Webhooks. Documentation examples and mocks do not replace real-environment acceptance.
+Check dynamic amounts, payment returns, identical retries and conflicting parameters, merchant permissions, guest checkout, payment timeout and asynchronous results. Update each business order only once per stable `event_id`, and handle refunds and chargebacks in your business system. TDCloud verifies Stripe Webhooks.

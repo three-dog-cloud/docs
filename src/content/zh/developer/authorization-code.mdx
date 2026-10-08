@@ -121,7 +121,7 @@ HTTP `200`，直接返回 JSON 对象。
 | --- | --- | --- | --- |
 | `access_token` | string | 所有成功授权方式 | 用户信息及 OpenAPI 的 Bearer 凭据 |
 | `token_type` | string | 所有成功授权方式 | `Bearer` |
-| `expires_in` | integer | 所有成功授权方式 | Access Token 有效秒数；由部署配置决定，不应硬编码 |
+| `expires_in` | integer | 所有成功授权方式 | Access Token 有效秒数；以响应值为准，不应硬编码 |
 | `scope` | string | 所有成功授权方式 | 空格分隔的实际权限 |
 | `refresh_token` | string | 授权码交换、刷新 | 后续刷新使用的新凭据 |
 | `id_token` | string | 当前授权码交换、刷新响应均返回 | 不可替代 Access Token；不能将仅解码结果视为已验证身份 |

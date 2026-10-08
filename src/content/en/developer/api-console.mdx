@@ -2,8 +2,6 @@
 
 Approved developers can open **Developer Platform → Online API Console** to call endpoints approved for the current application and inspect the real HTTP status, duration, response headers and response body. Requests go to the real service, not a canned example or sandbox. Creating orders or starting payments creates real business data and requires an additional confirmation.
 
-> The base console is merged to the main branches. The no-Client-Secret improvement for platform-internal debug authorization described below is still an uncommitted working-tree change and has not been deployed. If production still asks for the Secret, follow production behavior until that improvement is released.
-
 ## Obtain console credentials
 
 The recommended option is **Authorize this account**. Select scopes already approved for the application and let the platform open the real authorization endpoint. The console uses Authorization Code with PKCE against the real token endpoint, then fills the Access Token and Refresh Token automatically.
