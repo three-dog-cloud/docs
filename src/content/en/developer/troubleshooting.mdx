@@ -37,6 +37,8 @@ Do not blindly replay order-creation or payment requests after a timeout. Reads 
 
 HTTP 202 `provider_result_pending` is not paid. If the buyer is back at checkout but has not returned to the merchant, query `status` and wait for asynchronous confirmation. Only the server creation request supplies the destination; browser parameters cannot override it. The new field also requires platform deployment. See [General merchant collection](/en/developer/merchant-payments/) for fields, statuses and limits.
 
+`invalid_expires_in` requires an integer lifetime of 60–86400 seconds, defaulting to 30 minutes when omitted. Deadlines cannot be extended by refreshes or idempotent retries. `410 payment_expired` blocks payment starts, not queries; `review` means the expired attempt still needs reconciliation. Keep the original order instead of creating a new attempt with a new key.
+
 ## Error envelopes differ
 
 OAuth errors contain `error` and `error_description`. Some business errors also include numeric `code`, `error_details` or `error_uri`. Use HTTP status and field meaning, tolerate unknown fields and avoid branching on one exact localized message.

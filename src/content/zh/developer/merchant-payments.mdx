@@ -2,7 +2,7 @@
 
 外部系统已有自己的订单、订阅和交付时，可由商户服务端按金额创建 TDCloud 收款单，再让买家跳转收银台。无需预先创建 TDCloud 商品；TDCloud 确认收款和结算，商户系统自行更新业务订单与权益。
 
-本页按后端 `bd12d98`、前端 `b76f67e` 的接口编写。返回地址功能需要平台完成 `0048` 迁移及前后端发布；真实 Stripe 回跳仍需环境验收。接入前向平台确认目标环境已更新，文档发布不代表业务环境已经启用。
+本页按后端 `8ef14ff`、前端 `8b81357` 的接口编写。返回地址功能需要平台完成 `0048` 迁移；固定支付期限及关单机制需部署本轮前后端（无新增迁移）。真实 Stripe 回跳和到期关单仍需环境验收。接入前向平台确认目标环境已更新，文档发布不代表业务环境已经启用。
 
 ## 1. 准备商户服务端凭据
 
@@ -58,6 +58,7 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | `currency` | string | 是 | 已启用且渠道支持的币种，使用大写代码 |
 | `payment_no` | string | 是 | 上一步取得的可用渠道编号 |
 | `description` | string | 否 | 最长 500 字节，去除首尾空白 |
+| `expires_in` | integer | 否 | 支付有效秒数，60～86400；默认 1800（30 分钟），建单后固定 |
 | `return_url` | string | 否 | 支付确认后返回的完整 HTTPS 地址，最长 2048 字节；规则见下一节 |
 
 ### 金额示例
@@ -75,7 +76,7 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   -H "Authorization: Bearer {ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","payment_no":"CHANNEL_NO","description":"订单说明","return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","payment_no":"CHANNEL_NO","description":"订单说明","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
 ```
 
 **成功响应**：HTTP `201`，重复同参数请求也返回 `201` 和同一收款单。
@@ -96,13 +97,23 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 }
 ```
 
-示例编号、地址、时间均为占位值。保存 `order_no` 与业务订单的映射，将实际返回的 `checkout_url` 交给买家浏览器；不能把它当作已支付凭证或在日志中暴露其中的令牌。有效期以最新查单结果为准，发起渠道会话时可能调整。
+示例编号、地址、时间均为占位值。保存 `order_no` 与业务订单的映射，将实际返回的 `checkout_url` 交给买家浏览器；不能把它当作已支付凭证或在日志中暴露其中的令牌。`expires_at` 在建单时确定，发起渠道会话、刷新页面和重试均不会延长。
 
 ### 幂等与重试
 
-同一商户、同一 `idempotency_key`、相同规范化参数返回同一单。金额、币种、渠道、外部引用、描述或返回地址变化返回 HTTP `409 payment_conflict`。不同商户的幂等空间隔离；`external_reference` 本身不是去重键。
+同一商户、同一 `idempotency_key`、相同规范化参数返回同一单。金额、币种、渠道、外部引用、描述、有效期或返回地址变化返回 HTTP `409 payment_conflict`。不同商户的幂等空间隔离；`external_reference` 本身不是去重键。
 
 超时后以原键和原参数重试，不能仅因没有收到响应就换键再建一张可支付单。确需新支付尝试时，先核对原单和渠道结果，避免两张单均可付款。
+
+### 支付超时
+
+- `expires_in` 是从建单成功开始计算的有效秒数。省略默认 30 分钟，也可传入 60～86400 秒（1 分钟～24 小时）。显式 `1800` 与省略等价；同键改为其他有效期返回 `409 payment_conflict`。
+- 到达固定 `expires_at` 后禁止继续发起支付，收银台发起接口返回 `410 payment_expired`。同键重试仍返回原单及原期限，不能续期。服务端查询及对账仍可用。
+- 尚未发起渠道会话的单在查询、列表、收银台读取或后台巡检时转为 `expired`。已发起会话的单先进入 `review`，后台核对付款并关闭尚未支付的 Stripe 会话；确认渠道已过期后才释放预占手续费和授信，且只释放一次。
+- 异步付款未决、渠道查单/关单失败或会话创建响应不明继续保留 `review`，不能直接认定失败或重复扣费。真实付款确认后，即使回调晚到，也会在钱包及账务完成后返回 `paid`；无法获取会话号的异常需管理员按 TDCloud 单号到 Stripe 核对。
+- 后台每分钟巡检，并在渠道异常时重试。Stripe 会话自身的最短期限为 30 分钟，可能晚于收款单期限；TDCloud 会主动关单，不会用渠道期限延长收款单。不能将本地到期理解为渠道地址必定在同一瞬间关闭。[Stripe 会话到期规则](https://docs.stripe.com/api/checkout/sessions/create#checkout_session_create-expires_at)、[主动关闭会话](https://docs.stripe.com/api/checkout/sessions/expire)。
+
+收银台显示倒计时，到期后移除支付入口并提示核对结果。商户遇到 `review` 或已付款异常时，应继续查询原单、保留稳定单号供人工对账；确认原支付尝试结束后再创建新尝试。
 
 ## 4. 接入支付返回地址
 
@@ -173,7 +184,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | --- | --- |
 | `pending` | 未决，继续核对；不能交付，也不能仅凭本地计时判失败 |
 | `paid` | 收款与商户账务处理已确认；核对订单引用、金额和币种后按 `event_id` 只记一次 |
-| `review` | 会话创建结果不明，需平台人工核对；不要换键重复收款 |
+| `review` | 支付期限已到但渠道结果未决或核对失败；创建响应不明时需平台人工核对，不要换键重复收款 |
 | `expired` | 已核对无付款的到期状态；晚到的真实收款仍可能被核验并转为 `paid`，应继续异常对账 |
 | `refunded` | 已确认退款，保留原支付事件；商户按自己的退款与权益规则处理 |
 | `chargeback` | 已确认拒付，保留原支付事件；商户处理争议和业务状态 |
@@ -195,6 +206,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | HTTP | `error` | 处理 |
 | --- | --- | --- |
 | 400 | `invalid_request` | 核对参数、金额及列表过滤条件 |
+| 400 | `invalid_expires_in` | 修正有效期为 60～86400 秒的整数；返回 `error_description` 和 `field: "expires_in"` |
 | 400 | `invalid_return_url` | 修正 HTTPS 地址；同时返回 `error_description`、`field: "return_url"` |
 | 401 | `invalid_token` | 重新获取有效 OAuth 令牌 |
 | 403 | `insufficient_scope`、`client_credentials_required` | 核对批准权限及令牌主体 |
@@ -203,6 +215,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | 403 | `payment_debug_access_denied` | 核对调试渠道分配与启用状态 |
 | 404 | `payment_not_found` | 核对单号及本商户归属，不推断其他商户资源 |
 | 409 | `payment_conflict` | 原幂等键参数冲突；收银台支付状态冲突也可能使用此码 |
+| 410 | `payment_expired` | 不能继续发起支付；查询原单并核对付款结果，避免重复下单 |
 | 409 | `provider_result_mismatch` | 由平台核对渠道会话、金额和币种 |
 | 422 | `channel_unavailable`、`currency_rate_unavailable` | 重新确认渠道、币种及平台汇率 |
 | 422 | `merchant_fee_funding_unavailable` | 核对平台费率、可用钱包和授信额度 |
