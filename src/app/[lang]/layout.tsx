@@ -84,7 +84,7 @@ export default async function LocaleLayout({
           <div className="site-footer">
             <span>
               <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>
-              {" · "}© {new Date().getFullYear()}{" "}
+              {" · "}© 2024{" "}
               <a href="https://github.com/three-dog-cloud">{isZh ? "三狗" : "TD Cloud"}</a>
             </span>
             <span className="site-footer-locales">
