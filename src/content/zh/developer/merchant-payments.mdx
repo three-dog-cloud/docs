@@ -54,8 +54,8 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | `idempotency_key` | string | 是 | 同一次建单的重试键，最长 128 字节；同商户内唯一 |
 | `amount_minor` | integer | 是 | 正整数，按支付币种精度表示金额；最大 9007199254740991，且须能在平台内部精度内表示 |
 | `currency` | string | 是 | 已启用且渠道支持的币种，使用大写代码 |
-| `payment_no` | string | 是 | 上一步取得的可用渠道编号 |
-| `description` | string | 否 | 最长 500 字节，去除首尾空白 |
+| `payment_no` | string | 否 | 传入时限定为该渠道；省略或为空时由买家在收银台选择可用支付方式 |
+| `description` | string | 否 | 展示给买家的付款内容，最长 500 字节，去除首尾空白；不要放入内部编号、密钥或其他敏感信息 |
 | `expires_in` | integer | 否 | 支付有效秒数，60～7200；默认 1800（30 分钟），建单后固定 |
 | `notify_enabled` | boolean | 否 | 省略时使用显式通知参数或商户默认配置；`false` 关闭本单通知，不能同时传通知地址/密钥；`true` 要求存在有效通知配置 |
 | `notify_url` | string | 否 | 服务端通知的公网 HTTPS 地址，须与 `notify_secret` 同时传入；见状态通知一节 |
@@ -77,7 +77,7 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   -H "Authorization: Bearer {ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","payment_no":"CHANNEL_NO","description":"订单说明","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","description":"订单说明","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
 ```
 
 **成功响应**：HTTP `201`，重复同参数请求也返回 `201` 和同一收款单。
@@ -86,7 +86,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 {
   "order_no": "MP_EXAMPLE",
   "external_reference": "merchant-order-123",
-  "payment_no": "CHANNEL_NO",
+  "payment_no": "",
   "amount_minor": 1050,
   "currency": "USD",
   "currency_decimals": 2,
@@ -99,6 +99,16 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 ```
 
 示例编号、地址、时间均为占位值。保存 `order_no` 与业务订单的映射，将实际返回的 `checkout_url` 交给买家浏览器；不能把它当作已支付凭证或在日志中暴露其中的令牌。`expires_at` 在建单时确定，发起渠道会话、刷新页面和重试均不会延长。
+
+### 买家选择支付方式
+
+默认建单不传 `payment_no`，TDCloud 保存当时可用的渠道及金额、汇率、手续费规则，返回一个收银台地址。买家在收银台选择付款方式；只有一种可用方式时直接显示该方式。商户希望限定单一渠道时仍可传入 `payment_no`，历史固定渠道订单沿用原方式。
+
+买家只能看到当前商户可用且符合实际付款账号授权的方式。需要登录的方式会提示登录，未登录时不能使用 TDC 余额。TDC 可按建单时保存的汇率支付其他已启用币种的订单，页面显示实际应付 TDC；金额和订单币种保持不变。自有渠道手续费在建单时检查，发起付款时再次检查并预占。
+
+首次发起渠道付款后锁定方式。再次点击或刷新继续使用同一支付尝试；渠道响应不明时不能切换方式另建会话。超时不会因选择方式或刷新而延期。尚未选择时，服务端 `payment_no` 为空、`test_mode` 为 `false`；选择后查单反映实际渠道和测试模式，不改变原建单参数的幂等校验。
+
+买家收银台只展示商户名称、付款内容、金额、倒计时与支付方式。外部订单引用、TDCloud 对账单号、支付事件号、渠道交易号及钱包结算信息保留在商户服务端查单和通知接口。收银台使用本单专属的方式标识，不能通过提交任意渠道编号越权付款。
 
 ### 幂等与重试
 

@@ -63,6 +63,8 @@ Administrator-assigned Stripe test channels do not charge real buyer funds, but 
 
 With multiple identifiers, match any merchant in the merchant list and any user in the user list. A paying-user restriction requires TDCloud sign-in even when guest checkout is enabled. Merchant-only configuration follows the merchant's guest policy. Wallet recharge has no merchant context, so it requires a user-only configuration. Administrator identity does not grant access. These conditions govern the selected test channel; they do not convert other merchant channels into test payments. See [General merchant collection](/en/developer/merchant-payments/) for return URLs and payment confirmation.
 
+External systems may create amount-based collection orders without specifying a channel, allowing buyers to choose an available method at TDCloud checkout. Specify a channel to restrict an order to one method. Checkout displays payment details, amount and countdown; reconciliation and settlement records remain on the merchant server. Starting payment locks the method, and refreshing does not create a separate attempt.
+
 ## Optional collection notifications and replay
 
 In **Merchant Center → Payment and settlement**, configure a public HTTPS receiver under **Collection status notifications**. Notifications are off by default; creation and server-side lookup still work. Saving an endpoint generates a separate signing secret, displayed once. Store it on your server, implement verification, then enable default notifications.

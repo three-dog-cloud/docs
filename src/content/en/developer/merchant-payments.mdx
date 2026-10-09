@@ -54,8 +54,8 @@ Availability depends on merchant ownership, enablement and debug grants. Initial
 | `idempotency_key` | string | Yes | Retry key for this creation attempt, at most 128 bytes, unique within the merchant |
 | `amount_minor` | integer | Yes | Positive integer in payment-currency minor units; at most 9007199254740991 and representable at platform internal precision |
 | `currency` | string | Yes | Enabled, channel-supported currency; use its uppercase code |
-| `payment_no` | string | Yes | An available identifier from the preceding directory |
-| `description` | string | No | At most 500 bytes, trimmed |
+| `payment_no` | string | No | Restricts the order to this channel when supplied; omit or leave empty to let the buyer choose an available method at checkout |
+| `description` | string | No | Buyer-visible payment description; at most 500 bytes, trimmed. Do not include internal IDs, keys or sensitive information |
 | `expires_in` | integer | No | Fixed payment lifetime in seconds, 60–7200; defaults to 1800 (30 minutes) |
 | `notify_enabled` | boolean | No | Omit to use explicit parameters or merchant defaults; `false` disables this order and cannot be combined with URL/secret; `true` requires a valid notification configuration |
 | `notify_url` | string | No | Public HTTPS notification endpoint; supply with `notify_secret`, see status notifications |
@@ -77,7 +77,7 @@ Convert with integer or decimal arithmetic using the currency precision, rather 
 curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   -H "Authorization: Bearer {ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","payment_no":"CHANNEL_NO","description":"Order description","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","description":"Order description","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
 ```
 
 **Success**: HTTP `201`. An identical retry also returns `201` and the same order.
@@ -86,7 +86,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 {
   "order_no": "MP_EXAMPLE",
   "external_reference": "merchant-order-123",
-  "payment_no": "CHANNEL_NO",
+  "payment_no": "",
   "amount_minor": 1050,
   "currency": "USD",
   "currency_decimals": 2,
@@ -99,6 +99,16 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 ```
 
 Identifiers, URLs and dates above are examples. Save the mapping between `order_no` and your business order, then send the buyer to the actual returned `checkout_url`. It is not payment evidence; do not expose its token in logs. `expires_at` is fixed at creation; provider sessions, page refreshes and retries cannot extend it.
+
+### Buyer payment-method selection
+
+Omit `payment_no` for the default checkout flow. TDCloud snapshots available channels and their amount, exchange-rate and fee rules, then returns one checkout URL. The buyer chooses an available method; a single available method is shown directly. Supply `payment_no` to restrict an order to one channel. Historical fixed-channel orders keep their original method.
+
+Checkout shows only merchant-eligible methods that satisfy the actual paying account's authorization. Methods requiring sign-in display a login prompt; guests cannot spend TDC balances. TDC can pay orders in other enabled currencies at the saved creation-time rate, with the actual TDC charge displayed. The original order amount and currency remain unchanged. Merchant-owned channel fees are checked during creation and checked/reserved again when starting payment.
+
+The first provider attempt locks the selected method. Refreshes and repeated clicks resume the same attempt; an uncertain provider response cannot be bypassed by choosing another method. Selecting or refreshing never extends expiry. Before selection, server-side `payment_no` is empty and `test_mode` is `false`; lookup reports the actual channel and mode after selection without changing the original request's idempotency contract.
+
+Buyer checkout displays merchant name, payment description, amount, countdown and methods. External references, TDCloud reconciliation IDs, payment events, provider trade numbers and wallet settlement data remain in merchant-authenticated lookup and notifications. Method identifiers are specific to the order; submitting arbitrary channel IDs cannot grant payment access.
 
 ### Idempotency and retries
 
