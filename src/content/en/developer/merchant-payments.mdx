@@ -19,7 +19,13 @@ curl -X POST "{TOKEN_ENDPOINT}" \
 
 Use the returned `access_token`, effective `scope` and `expires_in`. Client Credentials does not issue a user Refresh Token; obtain another token with server credentials after expiry. Public clients and clients without a merchant binding cannot use this flow.
 
-## 2. Discover available channels
+## 2. Payment flow and method selection
+
+Your server submits the invoice amount and currency. TDCloud owns amount validation, available payment methods, provider adaptation and settlement. The default flow does not require channel discovery or a channel identifier: buyers choose a method at the returned checkout. `currency` specifies the invoice currency; the platform handles the actual payment method and wallet settlement.
+
+### Optional: restrict to one channel
+
+Existing integrations that need a fixed method can use this directory and pass `payment_no`. A channel's `currency` is its default display currency, not the precision authority for invoice amounts. Do not use it to convert an invoice amount.
 
 `GET {API_BASE_URL}/openapi/v1/merchant-payment-channels`
 
@@ -52,8 +58,8 @@ Availability depends on merchant ownership, enablement and debug grants. Initial
 | --- | --- | --- | --- |
 | `external_reference` | string | Yes | Your business-order reference; nonempty after trimming, at most 191 bytes, immutable |
 | `idempotency_key` | string | Yes | Retry key for this creation attempt, at most 128 bytes, unique within the merchant |
-| `amount_minor` | integer | Yes | Positive integer in payment-currency minor units; at most 9007199254740991 and representable at platform internal precision |
-| `currency` | string | Yes | Enabled, channel-supported currency; use its uppercase code |
+| `amount` | string | Yes for new integrations | Positive decimal amount string, such as `"10.50"`; the platform validates currency precision and converts it as described below |
+| `currency` | string | Yes | Invoice currency enabled by the platform, in uppercase; TDCloud determines available payment methods |
 | `payment_no` | string | No | Restricts the order to this channel when supplied; omit or leave empty to let the buyer choose an available method at checkout |
 | `description` | string | No | Buyer-visible payment description; at most 500 bytes, trimmed. Do not include internal IDs, keys or sensitive information |
 | `expires_in` | integer | No | Fixed payment lifetime in seconds, 60–7200; defaults to 1800 (30 minutes) |
@@ -64,20 +70,30 @@ Availability depends on merchant ownership, enablement and debug grants. Initial
 
 ### Amount examples
 
-This endpoint uses `amount_minor`, which differs from the fixed eight-decimal amounts used by catalog-order APIs.
+Submit a decimal `amount` string. Merchants do not need to fetch currency precision or convert to minor units. TDCloud validates and converts exactly using its currency rules; it never rounds an amount to fit the currency.
 
-| Payment amount | `currency` | `amount_minor` | Returned `currency_decimals` |
+| Invoice amount | Request `currency` | Request `amount` | Response `amount` |
 | --- | --- | --- | --- |
-| 10.50 USD | USD | 1050 | 2 |
-| 10.50 TDC | TDC | 1050000000 | 8 |
+| 10.50 USD | USD | `"10.50"` | `"10.50"` |
+| 10.50 TDC | TDC | `"10.50"` | `"10.50000000"` |
+| 100 JPY (when enabled) | JPY | `"100"` | `"100"` |
 
-Convert with integer or decimal arithmetic using the currency precision, rather than rounding floating-point multiplication. Verify returned amount, currency and precision after creation; do not reprice an existing order using live rates.
+- `amount` must be a JSON string, at most 64 bytes, containing digits with an optional single decimal point. Signs, whitespace, commas, currency symbols, scientific notation, `.5` and `1.` are invalid. Zero and negative amounts cannot create an order.
+- Nonzero fractional digits cannot exceed the platform's precision for that currency. For example, USD `"10.001"` and JPY `"100.5"` are rejected. Redundant trailing zeros are accepted: `"10.5"`, `"10.50"` and `"10.5000"` represent the same amount.
+- The platform checks representable amount limits, currency availability and payment methods. Failures use `invalid_amount`, `invalid_amount_precision`, `currency_unavailable` or `channel_unavailable`, respectively; it does not silently change the amount or currency.
+- Creation, detail, list and newly generated status notifications return a normalized `amount` string at the order's stored precision. Compare `amount` as a decimal value and verify `currency`. String length is not an amount comparison; do not use binary floating point or live rates to reprice historical orders.
+
+### Legacy compatibility
+
+Existing integrations can continue sending only a positive integer `amount_minor`, in invoice-currency minor units, at most 9007199254740991 and within platform amount limits. Submit exactly one of `amount` or `amount_minor`: even zero or `null` in the other field is rejected. New integrations use `amount`.
+
+Responses retain `amount_minor`, `currency_decimals` and actual channel information for legacy reconciliation. New integrations do not need them for conversion before creation. Retrying an equivalent amount across representations with the same idempotency key returns the original order. Previously stored notification bodies remain unchanged on retries; support legacy amount fields for historical notifications or query the order for `amount`.
 
 ```bash
 curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   -H "Authorization: Bearer {ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","description":"Order description","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount":"10.50","currency":"USD","description":"Order description","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
 ```
 
 **Success**: HTTP `201`. An identical retry also returns `201` and the same order.
@@ -87,6 +103,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   "order_no": "MP_EXAMPLE",
   "external_reference": "merchant-order-123",
   "payment_no": "",
+  "amount": "10.50",
   "amount_minor": 1050,
   "currency": "USD",
   "currency_decimals": 2,
@@ -112,7 +129,7 @@ Buyer checkout displays merchant name, payment description, amount, countdown an
 
 ### Idempotency and retries
 
-The same merchant, `idempotency_key` and normalized parameters return the same order. Changing amount, currency, channel, external reference, description, lifetime or return URL returns HTTP `409 payment_conflict`. Merchant namespaces are separate; `external_reference` alone is not a deduplication key.
+The same merchant, `idempotency_key` and normalized parameters return the same order. Amounts are normalized by value; redundant trailing zeros do not change the request. Retries use the original order’s stored precision even if the currency rules or availability have changed. Changing amount, currency, channel, external reference, description, lifetime or return URL returns HTTP `409 payment_conflict`. Merchant namespaces are separate; `external_reference` alone is not a deduplication key.
 
 After a timeout, retry with the original key and parameters. A missing response does not justify creating another payable order with a new key. Reconcile the original order and provider result before starting a genuinely new payment attempt.
 
@@ -167,9 +184,8 @@ Supply both `notify_url` and `notify_secret` at creation to receive HTTPS POST n
 {
   "external_reference": "merchant-order-123",
   "idempotency_key": "merchant-order-123-attempt-1",
-  "amount_minor": 1050,
+  "amount": "10.50",
   "currency": "USD",
-  "payment_no": "CHANNEL_NO",
   "notify_url": "https://merchant.example/hooks/tdcloud",
   "notify_secret": "MERCHANT_GENERATED_RANDOM_SECRET_AT_LEAST_32_BYTES"
 }
@@ -191,6 +207,7 @@ Each status change emits `merchant_payment.status_changed`, including initial `p
     "order_no": "MP_EXAMPLE",
     "external_reference": "merchant-order-123",
     "payment_no": "CHANNEL_NO",
+    "amount": "10.50",
     "amount_minor": 1050,
     "currency": "USD",
     "currency_decimals": 2,
@@ -285,6 +302,7 @@ Confirmed-payment response example (verification fields only):
   "order_no": "MP_EXAMPLE",
   "external_reference": "merchant-order-123",
   "payment_no": "CHANNEL_NO",
+  "amount": "10.50",
   "amount_minor": 1050,
   "currency": "USD",
   "currency_decimals": 2,
@@ -330,7 +348,10 @@ Errors include at least a string `error`. HTTP `202 provider_result_pending` is 
 | 400 | `invalid_notify_url` | Use a public HTTPS endpoint without credentials, fragments or private targets |
 | 400 | `invalid_notify_secret` | Supply an independent random 32–256-byte secret without whitespace |
 | 503 | `notification_unavailable` | Retry later with the original idempotency key |
-| 400 | `invalid_request` | Check parameters, amount and list filters |
+| 400 | `invalid_request` | Check parameters, legacy amount fields and list filters |
+| 400 | `invalid_amount` | Use a valid positive decimal string within platform limits, with only one amount representation; returns `field: "amount"` and a description |
+| 400 | `invalid_amount_precision` | Nonzero fractional digits exceed currency precision; no rounding is performed; returns `field: "amount"` and a description |
+| 422 | `currency_unavailable` | Invoice currency is unknown or disabled; returns `field: "currency"` and a description |
 | 400 | `invalid_expires_in` | Use an integer lifetime of 60–7200 seconds; returns `error_description` and `field: "expires_in"` |
 | 400 | `invalid_return_url` | Fix the HTTPS destination; also returns `error_description` and `field: "return_url"` |
 | 401 | `invalid_token` | Obtain a valid OAuth token |

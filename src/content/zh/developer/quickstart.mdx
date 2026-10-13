@@ -60,7 +60,7 @@ Access Token 的实际权限以令牌响应 `scope` 为准，不能超出客户�
 | 业务写请求 | `Content-Type: application/json` |
 | 成功响应 | 直接返回 JSON 资源或列表，没有统一的 `data` 外层 |
 | 业务编号 | 字符串，保留原值 |
-| 金额 | 商品订单采用八位定点；通用收款的 `amount_minor` 按币种精度；详见 [数据格式](/zh/developer/data-formats/) |
+| 金额 | 商品订单采用八位定点；通用收款提交十进制字符串 `amount`，平台校验和转换；详见 [数据格式](/zh/developer/data-formats/) |
 | 有效期 | `expires_in` 为持续秒数，支付 `expire_time` 为 Unix 秒时间戳 |
 | 错误处理 | 先检查 HTTP 状态，再解析错误字段；详见 [错误与排查](/zh/developer/troubleshooting/) |
 

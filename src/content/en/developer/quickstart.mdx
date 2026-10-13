@@ -31,7 +31,7 @@ Prepare:
 
 Obtain these service URLs from Developer Center → Application configuration → Service URLs after approval. Addresses are assigned per client. Preserve the complete base path and use the supplied OAuth endpoints without deriving them from another address. Keep URLs in application configuration and update them when the platform notifies you of a change. Documentation and callback URLs are not service endpoints.
 
-For external-order collection, follow [General merchant collection](/en/developer/merchant-payments/) directly: obtain a server token, discover channels, create with an idempotency key and optional `return_url`, then reconcile confirmed payment. Buyer OAuth identity authorization is not a prerequisite; TDC still requires TDCloud sign-in at checkout.
+For external-order collection, follow [General merchant collection](/en/developer/merchant-payments/) directly: obtain a server token, create with a decimal `amount` string, invoice `currency`, an idempotency key and optional `return_url`, then reconcile confirmed payment. Buyer OAuth identity authorization is not a prerequisite; TDC still requires TDCloud sign-in at checkout.
 
 ## 3. Establish identity authorization first
 

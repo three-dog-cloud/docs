@@ -19,7 +19,13 @@ curl -X POST "{TOKEN_ENDPOINT}" \
 
 使用响应的 `access_token` 和实际 `scope`，按 `expires_in` 管理有效期。Client Credentials 不签发用户 Refresh Token，过期后用服务端凭据重新获取令牌。公共客户端或未绑定商户的客户端不能使用此流程。
 
-## 2. 查询可用支付渠道
+## 2. 支付流程与方式选择
+
+商户服务端提交订单金额和币种，TDCloud 负责金额校验、可用支付方式、渠道适配及结算。默认无需查询或传入渠道编号；买家进入返回的收银台后选择支付方式。订单计价币种由 `currency` 指定，实际付款方式和钱包结算由平台处理。
+
+### 可选：限定单一渠道
+
+需要限定支付方式的现有接入可使用以下渠道目录，再传入 `payment_no`。渠道目录的 `currency` 是渠道默认展示币种，不是收款订单的金额精度来源；不要据此换算订单金额。
 
 `GET {API_BASE_URL}/openapi/v1/merchant-payment-channels`
 
@@ -52,8 +58,8 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | --- | --- | --- | --- |
 | `external_reference` | string | 是 | 商户业务订单引用，去除首尾空白后非空，最长 191 字节；创建后固定 |
 | `idempotency_key` | string | 是 | 同一次建单的重试键，最长 128 字节；同商户内唯一 |
-| `amount_minor` | integer | 是 | 正整数，按支付币种精度表示金额；最大 9007199254740991，且须能在平台内部精度内表示 |
-| `currency` | string | 是 | 已启用且渠道支持的币种，使用大写代码 |
+| `amount` | string | 是，新接入使用 | 正数十进制金额字符串，例如 `"10.50"`；由平台校验币种精度并转换，规则见下方 |
+| `currency` | string | 是 | 平台已开放的订单计价币种，使用大写代码；可用付款方式由平台决定 |
 | `payment_no` | string | 否 | 传入时限定为该渠道；省略或为空时由买家在收银台选择可用支付方式 |
 | `description` | string | 否 | 展示给买家的付款内容，最长 500 字节，去除首尾空白；不要放入内部编号、密钥或其他敏感信息 |
 | `expires_in` | integer | 否 | 支付有效秒数，60～7200；默认 1800（30 分钟），建单后固定 |
@@ -64,20 +70,30 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 
 ### 金额示例
 
-此接口使用 `amount_minor`，与商品订单接口的八位定点金额不同。
+提交十进制字符串 `amount`，不需要在商户侧读取币种精度或换算最小单位。TDCloud 按平台币种规则精确校验和转换，不会四舍五入超出精度的金额。
 
-| 付款金额 | `currency` | `amount_minor` | 返回的 `currency_decimals` |
+| 订单金额 | 请求 `currency` | 请求 `amount` | 响应 `amount` |
 | --- | --- | --- | --- |
-| 10.50 USD | USD | 1050 | 2 |
-| 10.50 TDC | TDC | 1050000000 | 8 |
+| 10.50 USD | USD | `"10.50"` | `"10.50"` |
+| 10.50 TDC | TDC | `"10.50"` | `"10.50000000"` |
+| 100 JPY（币种已开放时） | JPY | `"100"` | `"100"` |
 
-使用整数或十进制库按币种精度换算，不使用浮点乘法四舍五入拼金额。创建成功后核对返回的金额、币种和精度，不用实时汇率改写原订单。
+- `amount` 必须是 JSON 字符串，最长 64 字节，仅允许数字和一个小数点；不接受正负号、空白、逗号、货币符号、科学计数法、`.5` 或 `1.`。零和负金额不能建单。
+- 非零小数位不能超出平台对该币种的精度。例如 USD `"10.001"`、JPY `"100.5"` 会被拒绝。多余的末尾零可省略：`"10.5"`、`"10.50"`、`"10.5000"` 表示同一金额。
+- 平台校验可表示的金额范围、币种是否开放和可用支付方式；结果分别以 `invalid_amount`、`invalid_amount_precision`、`currency_unavailable` 或 `channel_unavailable` 拒绝，不会自动换币种或改金额。
+- 创建、查单、列表和新生成的状态通知都返回规范化的 `amount` 字符串，保留订单保存的币种精度。按十进制数核对 `amount` 与 `currency`，无需按字符串长度判断金额是否相等，也不要用浮点数或实时汇率改写历史订单。
+
+### 旧接口兼容
+
+历史接入仍可仅提交正整数 `amount_minor`，按订单币种最小单位表示，最大 9007199254740991，并须在平台金额范围内。`amount` 与 `amount_minor` 只能提交一种；即使另一个字段是零或 `null` 也会拒绝。新接入使用 `amount`。
+
+响应继续包含 `amount_minor`、`currency_decimals` 和实际渠道信息，供旧接入对账；它们不是新接入的前置换算要求。同一金额在两种表示方式之间重试使用相同幂等键，仍返回原单。旧通知已保存的正文不会改写，重试保持原正文；处理历史通知时可兼容原金额字段，或调用查单获取 `amount`。
 
 ```bash
 curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   -H "Authorization: Bearer {ACCESS_TOKEN}" \
   -H "Content-Type: application/json" \
-  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount_minor":1050,"currency":"USD","description":"订单说明","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
+  --data '{"external_reference":"merchant-order-123","idempotency_key":"merchant-order-123-attempt-1","amount":"10.50","currency":"USD","description":"订单说明","expires_in":1800,"return_url":"https://merchant.example/orders/merchant-order-123?source=tdcloud#payment"}'
 ```
 
 **成功响应**：HTTP `201`，重复同参数请求也返回 `201` 和同一收款单。
@@ -87,6 +103,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
   "order_no": "MP_EXAMPLE",
   "external_reference": "merchant-order-123",
   "payment_no": "",
+  "amount": "10.50",
   "amount_minor": 1050,
   "currency": "USD",
   "currency_decimals": 2,
@@ -112,7 +129,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 ### 幂等与重试
 
-同一商户、同一 `idempotency_key`、相同规范化参数返回同一单。金额、币种、渠道、外部引用、描述、有效期或返回地址变化返回 HTTP `409 payment_conflict`。不同商户的幂等空间隔离；`external_reference` 本身不是去重键。
+同一商户、同一 `idempotency_key`、相同规范化参数返回同一单。金额按数值规范化，冗余末尾零不构成参数变化；原单重试使用原单保存的币种精度，平台币种规则或启用状态变更不会重新解释原金额。金额、币种、渠道、外部引用、描述、有效期或返回地址变化返回 HTTP `409 payment_conflict`。不同商户的幂等空间隔离；`external_reference` 本身不是去重键。
 
 超时后以原键和原参数重试，不能仅因没有收到响应就换键再建一张可支付单。确需新支付尝试时，先核对原单和渠道结果，避免两张单均可付款。
 
@@ -167,9 +184,8 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 {
   "external_reference": "merchant-order-123",
   "idempotency_key": "merchant-order-123-attempt-1",
-  "amount_minor": 1050,
+  "amount": "10.50",
   "currency": "USD",
-  "payment_no": "CHANNEL_NO",
   "notify_url": "https://merchant.example/hooks/tdcloud",
   "notify_secret": "MERCHANT_GENERATED_RANDOM_SECRET_AT_LEAST_32_BYTES"
 }
@@ -191,6 +207,7 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
     "order_no": "MP_EXAMPLE",
     "external_reference": "merchant-order-123",
     "payment_no": "CHANNEL_NO",
+    "amount": "10.50",
     "amount_minor": 1050,
     "currency": "USD",
     "currency_decimals": 2,
@@ -285,6 +302,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
   "order_no": "MP_EXAMPLE",
   "external_reference": "merchant-order-123",
   "payment_no": "CHANNEL_NO",
+  "amount": "10.50",
   "amount_minor": 1050,
   "currency": "USD",
   "currency_decimals": 2,
@@ -330,7 +348,10 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | 400 | `invalid_notify_url` | 使用公网 HTTPS 通知地址，不能包含账号密码、片段或内网目标 |
 | 400 | `invalid_notify_secret` | 通知地址须配独立随机密钥，32～256 字节，不含空白 |
 | 503 | `notification_unavailable` | 稍后用原幂等键重试 |
-| 400 | `invalid_request` | 核对参数、金额及列表过滤条件 |
+| 400 | `invalid_request` | 核对参数、旧金额字段及列表过滤条件 |
+| 400 | `invalid_amount` | 使用合法的正数十进制字符串，不超出金额范围，不同时提交两种金额；返回 `field: "amount"` 和说明 |
+| 400 | `invalid_amount_precision` | 金额包含此币种不支持的非零小数位；平台不舍入，返回 `field: "amount"` 和说明 |
+| 422 | `currency_unavailable` | 订单计价币种不存在或未开放；返回 `field: "currency"` 和说明 |
 | 400 | `invalid_expires_in` | 修正有效期为 60～7200 秒的整数；返回 `error_description` 和 `field: "expires_in"` |
 | 400 | `invalid_return_url` | 修正 HTTPS 地址；同时返回 `error_description`、`field: "return_url"` |
 | 401 | `invalid_token` | 重新获取有效 OAuth 令牌 |

@@ -20,9 +20,13 @@
 
 不能因为 USD 通常显示两位小数，就把 `125000000` 除以 100。
 
-## 通用收款使用币种最小单位
+## 通用收款使用十进制字符串
 
-`/openapi/v1/merchant-payments` 的 `amount_minor` 按币种精度换算：USD 10.50 提交 1050（精度 2），TDC 10.50 提交 1050000000（精度 8）。不要复用商品订单的统一八位缩放。其 `status` 为字符串，`expires_at` 和 `occurred_at` 为 RFC 3339 时间；列表返回 `items`，且必须按外部引用或单号过滤。详见 [通用商户收款](/zh/developer/merchant-payments/)。
+`/openapi/v1/merchant-payments` 提交 `amount` 字符串与 `currency`，例如 USD 或 TDC 10.50 均提交 `"amount":"10.50"`。平台按计价币种规则校验并精确转换，商户无需读取精度或换算最小单位；非零小数位超出精度时拒绝，不进行四舍五入。
+
+创建、查单、列表和新状态通知返回规范化的 `amount` 字符串，按原单精度保留小数位。核对时使用十进制比较，保留原始字符串，避免浮点运算。旧 `amount_minor` 请求及响应字段保留兼容，但请求不能同时提交两种表示。历史通知重试保留原正文。
+
+收款 `status` 为字符串，`expires_at` 和 `occurred_at` 为 RFC 3339 时间；列表返回 `items`，且必须按外部引用或单号过滤。详见 [通用商户收款](/zh/developer/merchant-payments/)。
 
 ## 商品金额与支付金额
 
@@ -43,7 +47,7 @@
 
 ## JavaScript 精度
 
-接口中的金额是 JSON 整数。超过 JavaScript 安全整数范围时，普通 `JSON.parse` 可能已经丢失精度，此后再转为 BigInt 也无法恢复。
+商品订单接口中的金额是 JSON 整数；通用收款的 `amount` 是十进制字符串。超过 JavaScript 安全整数范围时，普通 `JSON.parse` 可能已经丢失精度，此后再转为 BigInt 也无法恢复。
 
 接入时使用保留大整数的 JSON 解析方案，金额运算使用整数或十进制定点库。普通 `Number` 仅能用于已经确认在安全范围内的值。相关限制见 [MDN 安全整数说明](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER)。
 
