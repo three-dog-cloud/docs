@@ -153,6 +153,16 @@ Checkout displays a countdown and removes the payment action at expiry. Keep que
 
 Once the original collection is confirmed `expired`, create a new collection attempt for the same merchant business order using a new `idempotency_key`, preserving its `external_reference`, amount and currency. A new business order is not required; retain the original collection and historical payment associations.
 
+### Payment confirmation after expiry
+
+`expires_at` limits new payment starts; it is not a cutoff for accepting evidence of payments that occurred. Provider payment and TDCloud session closure can race, and asynchronous payments can be confirmed later. After TDCloud verifies collection and completes the corresponding accounting, an order previously reported as `expired` can still become `paid`. A successfully closed provider session cannot accept further checkout payments, but late payment results must still be checked.
+
+- Do not treat `expired` as a permanent state that rejects subsequent `paid`, or delete the association between the collection and your business order. Both notifications and historical queries must support `expired → paid`.
+- The new `paid` state has a higher `status_version` and produces a new status notification when notifications are enabled for that order. With notifications disabled or delivery unsuccessful, server queries and periodic reconciliation can discover the change; unlimited polling is not required.
+- An older `expired` notification must not overwrite a newer `paid` state for the same collection. Compare `status_version` only within one TDCloud collection order, never across separate payment attempts.
+- Keep earlier attempts in reconciliation after creating a new one. One business order can have multiple collection orders. Record each confirmed payment separately by its stable payment `event_id`, while deduplicating fulfillment, subscriptions and entitlements by your business order. Different payment events do not authorize duplicate fulfillment.
+- If a business order is already closed or fulfilled when another payment is confirmed, retain the payment fact and route it through your refund or manual resolution process. Do not silently discard it. TDCloud does not automatically refund because a business order is closed or a payment is confirmed late.
+
 ## 4. Integrate the payment return URL
 
 The merchant server supplies `return_url` during creation, after which it is immutable. Leading/trailing whitespace is trimmed. It must be an absolute HTTPS URL without credentials, backslashes or unencoded whitespace/control characters. Omitted, empty or absent on historical orders means the existing checkout flow remains.
@@ -258,6 +268,8 @@ if abs(time.time() - int(timestamp)) > 300 or not hmac.compare_digest(expected, 
 ```
 
 After verification, match the reference, amount, currency and `test_mode`, and deduplicate by notification `id`. Deliveries may repeat or arrive out of order. Per-order `status_version` increases monotonically; older versions must not overwrite newer state. Queries also return `status_version`. Payment accounting remains idempotent by `data.event_id`; only `paid` confirms payment. Refunds and chargebacks retain the original payment event identifier.
+
+For example, `expired` at version 2 can be followed by `paid` at version 3 for the same collection. A later redelivery of version 2 must not restore the expired state. Notifications and queries must share payment-accounting and business-fulfillment deduplication so concurrent processing or replay cannot fulfill twice. A newer confirmed payment must still be recorded and handled even if your business order has timed out.
 
 ### Acknowledgment, retries and replay
 

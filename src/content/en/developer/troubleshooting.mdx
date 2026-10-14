@@ -39,6 +39,8 @@ HTTP 202 `provider_result_pending` is not paid. If the buyer is back at checkout
 
 `invalid_expires_in` requires an integer lifetime of 60–7200 seconds, defaulting to 30 minutes when omitted. Deadlines cannot be extended by refreshes or idempotent retries. `410 payment_expired` blocks payment starts, not queries; `review` means the expired attempt still needs reconciliation. Keep the original order instead of creating a new attempt with a new key.
 
+An earlier `expired` result can be followed by a higher-version `paid` result because of a closure race or delayed asynchronous confirmation. Verify and process that payment fact. Retain historical attempts and do not reject later confirmation because of a local timeout or previous failure state. Prevent state regression with `status_version` for the same collection and deduplicate accounting by payment `event_id`. Fulfill the same business order at most once across attempts; route additional payments or payments for closed orders through refund or manual resolution. See “Payment confirmation after expiry” in [General merchant collection](/en/developer/merchant-payments/).
+
 If a notification is missing, query the original order and inspect `/merchant-payments/{order_no}/notifications`. After fixing the receiver, replay `failed` events. Verify the raw body with `notify_secret` and a timestamp tolerance of 5 minutes; store durably before returning `2xx`. Deduplicate event identifiers and use `status_version` to reject stale state.
 
 ## Error envelopes differ
