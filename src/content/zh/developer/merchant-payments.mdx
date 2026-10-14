@@ -127,9 +127,11 @@ curl -X POST "{API_BASE_URL}/openapi/v1/merchant-payments" \
 
 买家只能看到当前商户可用且符合实际付款账号授权的方式。需要登录的方式会提示登录，未登录时不能使用 TDC 余额。TDC 可按建单时保存的汇率支付其他已启用币种的订单，页面显示实际应付 TDC；金额和订单币种保持不变。自有渠道手续费在建单时检查，发起付款时再次检查并预占。
 
+渠道明确拒绝首次创建付款页面时，平台释放预占并允许重新选择；网络超时、服务异常或已有不明结果的重试不能据此解锁，避免生成第二张可支付会话。
+
 首次发起渠道付款后锁定方式。再次点击或刷新继续使用同一支付尝试；渠道响应不明时不能切换方式另建会话。超时不会因选择方式或刷新而延期。尚未选择时，服务端 `payment_no` 为空、`test_mode` 为 `false`；选择后查单反映实际渠道和测试模式，不改变原建单参数的幂等校验。
 
-买家收银台只展示商户名称、付款内容、金额、倒计时与支付方式。外部订单引用、TDCloud 对账单号、支付事件号、渠道交易号及钱包结算信息保留在商户服务端查单和通知接口。收银台使用本单专属的方式标识，不能通过提交任意渠道编号越权付款。
+买家收银台展示商户名称、付款说明、商户订单号、收款单号、订单金额、倒计时与支付方式。使用 TDC 时另显示按下单价格折算的实际扣款和本人的可用余额；订单计价金额不会被改写。外部方式在选择后直接进入付款页面，TDC 余额需明确确认扣款。支付事件号、渠道交易号及商户钱包结算信息仍只用于商户服务端查单和通知。收银台使用本单专属的方式标识，不能通过提交任意渠道编号越权付款。
 
 ### 幂等与重试
 
@@ -362,6 +364,9 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | 403 | `insufficient_scope`、`client_credentials_required` | 核对批准权限及令牌主体 |
 | 403 | `merchant_inactive` | 请平台恢复绑定商户 |
 | 403 | `login_required` | 收银台要求买家登录 |
+| 403 | `self_payment_not_allowed` | 不能用本人的 TDC 余额向本人商户付款；改用其他付款账号或方式 |
+| 422 | `insufficient_balance` | 买家可用 TDC 余额不足；充值或选择其他方式 |
+| 422 | `provider_checkout_rejected` | 渠道明确拒绝创建付款页面；预占已释放，可选择其他方式 |
 | 403 | `payment_debug_access_denied` | 核对调试渠道分配与启用状态 |
 | 404 | `payment_not_found` | 核对单号及本商户归属，不推断其他商户资源 |
 | 409 | `payment_conflict` | 原幂等键参数冲突；收银台支付状态冲突也可能使用此码 |
@@ -369,7 +374,7 @@ curl --get "{API_BASE_URL}/openapi/v1/merchant-payments" \
 | 409 | `provider_result_mismatch` | 由平台核对渠道会话、金额和币种 |
 | 422 | `channel_unavailable`、`currency_rate_unavailable` | 重新确认渠道、币种及平台汇率 |
 | 422 | `merchant_fee_funding_unavailable` | 核对平台费率、可用钱包和授信额度 |
-| 202 | `provider_result_pending` | 渠道结果未明，保留原单并核对 |
+| 202 | `provider_result_pending` | 渠道结果未明，保留原单与原支付尝试；这是待核对响应，不是付款成功 |
 | 429 | `rate_limited` | 按 `Retry-After` 等待，避免持续重试 |
 | 503 | `rate_limit_unavailable` | 限流服务暂不可用，有限退避重试 |
 | 500 | `server_error` | 保存脱敏上下文并向平台反馈；写请求复用原幂等键 |
