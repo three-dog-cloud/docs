@@ -72,6 +72,8 @@ curl "{API_BASE_URL}/openapi/v1/merchant-payment-channels" \
 | `notify_secret` | string | 否 | 独立随机签名密钥，32～256 字节，不含空白 |
 | `return_url` | string | 否 | 支付确认后返回的完整 HTTPS 地址，最长 2048 字节；规则见下一节 |
 
+可选字段可直接省略，也可用 `null` 表示未填写。`description`、`payment_no`、`return_url` 去除首尾空白后为空时，按未填写处理。`expires_in: 0` 是无效有效期；`notify_enabled: false` 则明确关闭本单通知。通知地址和签名密钥仍须成对提供，密钥不能包含空白字符。
+
 ### 金额示例
 
 提交十进制字符串 `amount`，不需要在商户侧读取币种精度或换算最小单位。TDCloud 按平台币种规则精确校验和转换，不会四舍五入超出精度的金额。

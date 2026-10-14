@@ -72,6 +72,8 @@ Availability depends on merchant ownership, enablement and debug grants. Initial
 | `notify_secret` | string | No | Independent random signing secret, 32–256 bytes without whitespace |
 | `return_url` | string | No | Absolute HTTPS destination after confirmed payment, at most 2048 bytes; see below |
 
+Optional fields can be omitted or set to `null`. Empty `description`, `payment_no`, and `return_url` values after trimming are treated as omitted. `expires_in: 0` is invalid, while `notify_enabled: false` explicitly disables notifications for this order. Notification URLs and signing secrets must still be supplied together, and secrets must not contain whitespace.
+
 ### Amount examples
 
 Submit a decimal `amount` string. Merchants do not need to fetch currency precision or convert to minor units. TDCloud validates and converts exactly using its currency rules; it never rounds an amount to fit the currency.
