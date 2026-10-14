@@ -4,7 +4,11 @@ When your system owns its orders, subscriptions and fulfillment, your merchant s
 
 ## 1. Prepare merchant server credentials
 
-Use a **confidential client** bound to your active merchant, with approved `merchant_payments.create` and `merchant_payments.read` scopes. Existing applications do not gain these scopes automatically; request a platform scope adjustment. All OpenAPI routes on this page require a `client_credentials` token, not a user-authorized token. Do not submit a buyer ID or merchant ID.
+In **Open Platform → Application details**, select a backend/confidential client, choose `merchant_payments.create` (create merchant collections) and `merchant_payments.read` (read collection results), then submit an application or revision. Your account must own an active merchant; the platform binds that merchant automatically.
+
+Existing applications do not need a new client: add the scopes to the original application's details and select **Submit change for review**. Current configuration remains effective while the revision is pending. Administrators review applications in **Admission review → Application review**, or use **Adjust scopes** with a review reason on an issued client. Scopes are never added automatically. A public client must first submit a confidential-client type revision; administrators cannot grant these server scopes directly to public clients.
+
+After approval, check the effective scopes in the client configuration and obtain a new Client Credentials token with the two collection scopes. Existing tokens do not gain new scopes. Catalog-order `payments.create` and `payments.read` cannot replace them. All OpenAPI routes on this page require a `client_credentials` token, not a user-authorized token. Do not submit a buyer ID or merchant ID.
 
 Use the complete service URLs assigned in Developer Center; see [Quickstart](/en/developer/quickstart/). Keep the Secret and Access Token on your server.
 

@@ -41,6 +41,14 @@ This means:
 - related OpenAPI calls fail after the bound merchant is disabled;
 - switching back to identity-only scopes removes the merchant association.
 
+## Request and review collection scopes
+
+In the original application's Open Platform details, select a confidential client, choose `merchant_payments.create` and `merchant_payments.read`, and submit an application or revision. An active merchant owned by the applicant is required. Administrators approve applications in **Admission review → Application review** or approve additional scopes on an eligible existing client through **Adjust scopes** with a review reason.
+
+Public clients cannot request or receive the server-only `merchant_payments.*`, `products.write` or `inventory.write` scopes. Submit a confidential-client type revision first. After approval, obtain a new token: old tokens never gain new scopes, and administrator status does not grant them automatically.
+
+`merchant_payments.*` provides server-side merchant collection, while `payments.*` provides authorized-user catalog-order payment. They are not interchangeable. See [General merchant collection](/en/developer/merchant-payments/).
+
 ## Client Credentials restriction
 
 Only a confidential, merchant-bound client can use `client_credentials`. The current flow allows only:

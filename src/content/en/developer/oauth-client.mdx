@@ -26,7 +26,7 @@ HTTPS encrypts transport between the application and platform. A `client_secret`
 
 For external-order collection, request `merchant_payments.create` and `merchant_payments.read` on a merchant-bound confidential client and obtain a Client Credentials token as described in [General merchant collection](/en/developer/merchant-payments/). No buyer-owned TDCloud catalog order is required.
 
-A collection’s `return_url` is its per-order business destination after confirmed payment. It is separate from the registered OAuth `redirect_uri`, receives no authorization code and is not payment evidence. Existing clients need platform approval for added scopes.
+A collection’s `return_url` is its per-order business destination after confirmed payment. It is separate from the registered OAuth `redirect_uri`, receives no authorization code and is not payment evidence. Existing clients can request added scopes in their original application details using **Submit change for review**. Current configuration remains effective until approval, which updates the same Client ID. Administrators can also approve added scopes for an eligible merchant-bound confidential client using **Application review → Adjust scopes** with a reason. Obtain a new token after approval. Public clients must first submit a confidential-client type revision and then generate a server secret.
 
 ## Secret storage and rotation
 
