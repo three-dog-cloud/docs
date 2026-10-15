@@ -52,6 +52,8 @@ For your own business orders, use [General merchant collection OpenAPI](/en/deve
 
 Platform-channel collection settles TDC at the creation-time rate. The platform assigns a 0–30 day hold per merchant; zero is immediately available. Complaints prevent release of that order's frozen sales funds. Confirmed losses use those funds, the guarantee deposit, available balance and outstanding recovery balance in sequence. Nonrefundable fees can make losses exceed frozen funds. Verified refunds and chargebacks retain the original payment event and are recorded by the platform.
 
+In **Merchant Center → Orders → Collection Orders**, inspect the original currency amount, saved TDC conversion, credit and hold status, and expected release time. Paid does not mean available funds increase immediately: a held settlement first increases frozen collection funds. Later rate or merchant hold-policy changes do not recalculate an existing order's settlement amount or hold days. See [Merchant orders and reconciliation](/en/merchant/orders/).
+
 Administrator-assigned Stripe test channels do not charge real buyer funds, but normal wallet TDC posting, holds and fulfillment can still run. Administrators maintain test products and fulfillment. Merchant and paying-user restrictions combine as follows:
 
 | Configuration | Transactions allowed on this test channel |

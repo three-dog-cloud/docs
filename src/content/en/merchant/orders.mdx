@@ -1,6 +1,14 @@
 # Merchant orders and reconciliation
 
-Merchant Orders lists sales for the current merchant. My Orders lists purchases made by the signed-in account. If one account has both roles, check which view you are using.
+Merchant Orders has Collection Orders and Product Orders categories. My Orders lists purchases made by the signed-in account. If one account has both roles, check which view you are using.
+
+## Find external collections and frozen funds
+
+Open **Merchant Center → Orders → Collection Orders** and search by TDCloud collection number or your external business reference. Amount-based OpenAPI collections appear here and do not automatically create TDCloud product orders. Storefront sales appear under Product Orders.
+
+Collections show the original currency amount, payment status, TDC settlement amount, hold status and expected release time. Select the business reference to inspect the saved conversion, the amount transferred to available funds, debt or credit repayment, and the stable payment event identifier. Settlement uses amounts saved at creation; payment, release and queries never revalue an old order at current exchange rates.
+
+The page separates available wallet funds, frozen collection funds and the guarantee deposit. A credited but frozen collection is already posted to the wallet and is not yet spendable; do not credit it again. Frozen collection totals exclude the guarantee deposit. Complaints, refunds and debt repayment can affect actual release and final available funds. Test collections carry a test-payment label.
 
 ## What to inspect for each order
 
