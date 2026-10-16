@@ -131,7 +131,7 @@ Checkout shows only merchant-eligible methods that satisfy the actual paying acc
 
 The first provider attempt locks the selected method. Refreshes and repeated clicks resume the same attempt; an uncertain provider response cannot be bypassed by choosing another method. Selecting or refreshing never extends expiry. Before selection, server-side `payment_no` is empty and `test_mode` is `false`; lookup reports the actual channel and mode after selection without changing the original request's idempotency contract.
 
-Buyer checkout displays merchant name, payment description, merchant order reference, collection identifier, invoice amount, countdown and methods. TDC payments also show the exact debit converted at the creation-time price and the signed-in buyer’s available balance; the invoice amount remains unchanged. Selecting an external method opens its payment page directly, while TDC balance requires explicit debit confirmation. Payment event IDs, provider trade numbers and merchant settlement data remain in merchant-authenticated lookup and notifications. Method identifiers are specific to the order; submitting arbitrary channel IDs cannot grant payment access.
+Buyer checkout displays merchant name, payment description, merchant order reference, collection identifier, invoice amount, countdown and methods. TDC payments also show the exact debit converted at the creation-time price and the signed-in buyer’s available balance; the invoice amount remains unchanged. Selecting a method displays its subtotal, payment fee and payer total for review. Only explicit confirmation creates or resumes the payment page, or debits TDC balance. Switching methods alone does not start payment or lock a channel. Payment event IDs, provider trade numbers and merchant settlement data remain in merchant-authenticated lookup and notifications. Method identifiers are specific to the order; submitting arbitrary channel IDs cannot grant payment access.
 
 A definitive rejection of initial checkout creation releases reservations and permits another method. Timeouts, server failures and retries after an earlier ambiguous response keep the original attempt locked to avoid a second payable session.
 
@@ -314,8 +314,17 @@ An order includes the creation-response fields. Additional payment fields are:
 | `event_id` | string, optional | Stable, unique confirmed-payment event identifier for idempotent merchant posting |
 | `provider_trade_no` | string, optional | Provider transaction identifier; TDC uses `TDC:{order_no}` |
 | `occurred_at` | string or null | Confirmed payment time in RFC 3339; preserve its supplied time zone |
-| `settlement_tdc` | string, optional | Platform-channel locked settlement TDC as an eight-decimal fixed-point integer; not payment evidence |
+| `settlement_tdc` | string, optional | Platform-channel net settlement after merchant fees, as an eight-decimal fixed-point integer; not payment evidence |
 | `return_url` | string, optional | Stored merchant destination |
+
+| `fee_status` | string | `unselected`, `quoted`, or `legacy` (existing order fees) |
+| `fee_version` | integer | Fee snapshot version; existing orders use 0 |
+| `payment_amount` / `payment_currency` | string, optional | Buyer total including buyer fees, and actual payment currency; decimal strings |
+| `buyer_fee` | string, optional | Buyer surcharge in `payment_currency`, excluded from merchant income |
+| `merchant_fee` | string, optional | Merchant fee in `payment_currency` |
+| `merchant_fee_tdc` | string | Merchant fee in TDC, as an eight-decimal fixed-point integer |
+| `gross_settlement_tdc` | string | Invoice TDC conversion before merchant fees; an eight-decimal fixed-point integer |
+
 
 Confirmed-payment response example (verification fields only):
 
@@ -350,7 +359,31 @@ Do not apply catalog orders' numeric `status` mapping. There is currently no gen
 
 ## 7. Settlement, fees and debugging
 
-Platform channels convert at the creation-time rate and post TDC to the merchant wallet. The platform assigns each merchant a 0–30 day hold; zero allows immediate availability. Merchant-owned channels receive funds themselves, without duplicate TDCloud wallet credit. Platform fees are checked at creation and checked/reserved again before a payment link is obtained, using available TDC followed by approved credit. Insufficient funding rejects the transaction.
+### Invoice amount, buyer total and net settlement
+
+`amount`, `amount_minor` and `currency` always identify the original business invoice. Choosing a payment method does not change them. Plugins still validate their business order against these fields. `payment_amount` and `payment_currency` identify the buyer total, including applicable fees and any TDC conversion.
+
+Platform channels use both configured fee groups: buyer fees increase the payer total; merchant fees reduce the invoice's TDC conversion. Only the net amount credits the merchant wallet and enters its hold policy. Buyer fees are not merchant income. Checkout shows method totals and buyer fees before redirecting; merchant details show gross conversion, merchant fees and net settlement.
+
+Fees use the actual payment currency. Add the fixed fee to the fee base before computing its percentage; the percentage cap limits only the percentage component. Buyer fees use the invoice payment subtotal; platform-channel merchant fees use the buyer total. Round fees to the currency's smallest unit, with a one-unit minimum for positive fees. An all-zero configuration remains free. For TDC, first convert the invoice at its saved rate, then apply the TDC channel fees. A method cannot be used if merchant fees consume all invoice proceeds.
+
+For example, a CNY 10.00 invoice at a saved rate of 1 CNY = 1 TDC, with both groups set to fixed 4 plus 4% and neither cap reached:
+
+| Item | Amount |
+| --- | --- |
+| Invoice | CNY 10.00 |
+| Buyer fee | CNY 4.56 |
+| Buyer total | CNY 14.56 |
+| Gross invoice conversion | 10.00 TDC |
+| Merchant fee | 4.74 TDC |
+| Net settlement | 5.26 TDC |
+
+This example is not a fixed platform tariff or exchange rate. Amounts, fee rules, conversion and holds are saved at creation. Selecting a method previews its saved quote; payment confirmation binds the method. Until selection there is no single payer total or net settlement quote. Existing orders retain their original payment, verification and settlement amounts; current fees are never retroactively charged.
+
+Invoice fields remain unchanged in lookup and notifications. TDCloud verifies providers against the buyer total including fees. Refunds and chargebacks also verify the original buyer total. A full refund may exceed net frozen proceeds; guarantee and other funds cover the difference under platform rules. Collected fees are not returned. Additional external nonrefundable costs must represent new losses, not charge again for fees already covered by the buyer-total difference.
+
+
+Platform channels convert at the creation-time rate, deduct merchant fees and post net TDC to the merchant wallet. The platform assigns each merchant a 0–30 day hold; zero allows immediate availability. Merchant-owned channels receive funds themselves, without duplicate TDCloud wallet credit. Platform fees are checked at creation and checked/reserved again before a payment link is obtained, using available TDC followed by approved credit. Insufficient funding rejects the transaction.
 
 A complaint first prevents that order's frozen sales funds from being released. Confirmed losses use that order's frozen funds, guarantee deposit, available balance and outstanding recovery balance in sequence. Nonrefundable fees can make the loss exceed the frozen amount. The platform verifies refunds, chargebacks and complaints; changing your business order does not perform platform accounting. No merchant self-service refund/withdrawal OpenAPI is documented here. See [Payment and settlement](/en/merchant/payments/).
 
